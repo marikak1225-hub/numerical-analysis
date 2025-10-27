@@ -1,11 +1,9 @@
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-from pptx.util import Inches, Pt
-from pptx import Presentation
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import io
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
 
 st.set_page_config(page_title="後方数値データ分析", layout="wide")
 st.title("📊 後方数値データ分析ダッシュボード")
@@ -67,213 +65,42 @@ if uploaded_file:
             elif x < 1000: return "500-999"
             else: return "1000以上"
 
-        def group_loan(x):
-            if pd.isna(x): return "不明"
-            if x == 0: return "0"
-            elif x < 10: return "1-9"
-            elif x < 20: return "10-19"
-            elif x < 30: return "20-29"
-            elif x < 40: return "30-39"
-            elif x < 50: return "40-49"
-            elif x < 60: return "50-59"
-            elif x < 70: return "60-69"
-            elif x < 80: return "70-79"
-            elif x < 90: return "80-89"
-            elif x < 100: return "90-99"
-            elif x < 200: return "100-199"
-            elif x < 300: return "200-299"
-            else: return "300以上"
-
-        def group_mortgage(x):
-            if pd.isna(x): return "不明"
-            if x == 0: return "0"
-            elif x < 10: return "1-9"
-            elif x < 20: return "10-19"
-            elif x < 30: return "20-29"
-            elif x < 40: return "30-39"
-            elif x < 50: return "40-49"
-            elif x < 60: return "50-59"
-            elif x < 70: return "60-69"
-            elif x < 80: return "70-79"
-            elif x < 90: return "80-89"
-            elif x < 100: return "90-99"
-            else: return "100以上"
-
-        def group_years(x):
-            if pd.isna(x): return "不明"
-            if x == 0: return "0"
-            elif x <= 3: return "1-3"
-            elif x <= 9: return "4-9"
-            elif x <= 20: return "10-20"
-            else: return "21以上"
-
         # ✅ カテゴリ変換
         filtered_df['年代'] = filtered_df['年齢'].apply(group_age)
         filtered_df['年収帯'] = filtered_df['年収'].apply(group_income)
-        filtered_df['借入希望額帯'] = filtered_df['同借希望額'].apply(group_loan)
-        filtered_df['住宅ローン帯'] = filtered_df['住宅ローン返済月額'].apply(group_mortgage)
-        filtered_df['勤続年数帯'] = filtered_df['勤続年数'].apply(group_years)
 
-        # ✅ 二軸横並びグラフ作成関数
-        def create_dual_axis_grouped_chart(df, category_col, title):
-            count_data = df[category_col].value_counts().sort_index()
-            sum_data = df.groupby(category_col)['取扱高'].sum().reindex(count_data.index)
-
-            fig = go.Figure()
-            fig.add_trace(go.Bar(
-                x=count_data.index,
-                y=count_data.values,
-                name="件数",
-                marker_color="skyblue",
-                text=[f"{v}" for v in count_data.values],
-                textposition="outside",
-                offsetgroup=0,
-                yaxis="y"
-            ))
-            fig.add_trace(go.Bar(
-                x=sum_data.index,
-                y=sum_data.values,
-                name="取扱高（円）",
-                marker_color="orange",
-                text=[f"{v/1_000_000:.1f}M" for v in sum_data.values],
-                textposition="outside",
-                offsetgroup=1,
-                yaxis="y2"
-            ))
-            fig.update_layout(
-                title=f"{title}の分布（件数＋取扱高）",
-                xaxis=dict(title=category_col),
-                yaxis=dict(title="件数", side="left"),
-                yaxis2=dict(title="取扱高（円）", overlaying="y", side="right"),
-                barmode="group"
-            )
-            return fig
-
-        # ✅ グラフ生成と表示
+        # ✅ グラフ生成
         st.subheader("📈 項目別インタラクティブグラフ")
         chart_cols = [
             ("性別", "性別"),
             ("年代別", "年代"),
             ("年収帯", "年収帯"),
-            ("都道府県", "都道府県"),
-            ("利用目的", "利用目的"),
-            ("借入希望額帯", "借入希望額帯"),
-            ("家族構成", "家族構成"),
-            ("子供数", "子供数"),
-            ("住宅ローン帯", "住宅ローン帯"),
-            ("勤務状況", "勤務状況"),
-            ("勤続年数帯", "勤続年数帯"),
-            ("他社借入件数", "他社借入件数")
+            ("都道府県", "都道府県")
         ]
 
         figs = []
         for title, col in chart_cols:
             if col in filtered_df.columns and filtered_df[col].dropna().shape[0] > 0:
-                fig = create_dual_axis_grouped_chart(filtered_df, col, title)
+                count_data = filtered_df[col].value_counts().sort_index()
+                sum_data = filtered_df.groupby(col)['取扱高'].sum().reindex(count_data.index)
+                fig = go.Figure()
+                fig.add_trace(go.Bar(x=count_data.index, y=count_data.values, name="件数", marker_color="skyblue"))
+                fig.add_trace(go.Bar(x=sum_data.index, y=sum_data.values, name="取扱高（円）", marker_color="orange"))
+                fig.update_layout(title=f"{title}の分布", barmode="group")
                 st.plotly_chart(fig, use_container_width=True)
-                figs.append((fig, title, "件数と取扱高の二軸グラフ"))
+                figs.append(fig)
 
-        # ✅ クロス集計
-        st.subheader("🔍 クロス集計（件数＋取扱高）")
-        selected_cols = st.multiselect("クロス集計する項目を選択", [c for _, c in chart_cols])
-        if len(selected_cols) >= 2:
-            pivot_count = pd.pivot_table(filtered_df, index=selected_cols[0], columns=selected_cols[1], aggfunc='size', fill_value=0)
-            pivot_sum = pd.pivot_table(filtered_df, index=selected_cols[0], columns=selected_cols[1], values='取扱高', aggfunc='sum', fill_value=0)
-
-            st.write("件数")
-            st.dataframe(pivot_count)
-            st.write("取扱高（円）")
-            st.dataframe(pivot_sum)
-
-            # クロス集計グラフ
-            count_melted = pivot_count.reset_index().melt(id_vars=selected_cols[0], var_name=selected_cols[1], value_name="件数")
-            sum_melted = pivot_sum.reset_index().melt(id_vars=selected_cols[0], var_name=selected_cols[1], value_name="取扱高")
-
-            fig_cross = go.Figure()
-            fig_cross.add_trace(go.Bar(
-                x=count_melted[selected_cols[0]] + "-" + count_melted[selected_cols[1]],
-                y=count_melted["件数"],
-                name="件数",
-                marker_color="skyblue",
-                offsetgroup=0,
-                yaxis="y"
-            ))
-            fig_cross.add_trace(go.Bar(
-                x=sum_melted[selected_cols[0]] + "-" + sum_melted[selected_cols[1]],
-                y=sum_melted["取扱高"],
-                name="取扱高（円）",
-                marker_color="orange",
-                offsetgroup=1,
-                yaxis="y2"
-            ))
-            fig_cross.update_layout(
-                title="クロス集計（件数＋取扱高）",
-                xaxis=dict(title="組み合わせ"),
-                yaxis=dict(title="件数", side="left"),
-                yaxis2=dict(title="取扱高（円）", overlaying="y", side="right"),
-                barmode="group"
-            )
-            st.plotly_chart(fig_cross, use_container_width=True)
-            figs.append((fig_cross, "クロス集計", "選択した項目の件数と取扱高"))
-
-            prs = Presentation()
-            # 概要スライド
-            slide = prs.slides.add_slide(prs.slide_layouts[6])
-            title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.5), Inches(9), Inches(1))
-            title_tf = title_shape.text_frame
-            title_tf.text = "後方数値データ分析 概要"
-            title_tf.paragraphs[0].font.size = Pt(28)
-
-            desc_shape = slide.shapes.add_textbox(Inches(0.5), Inches(1.8), Inches(9), Inches(3))
-            desc_tf = desc_shape.text_frame
-            desc_tf.text = f"期間: {start_date} ～ {end_date}\n媒体コード: {'ALL' if 'ALL' in selected_codes else '媒体コード指定'}\n件数: {len(filtered_df)}"
-            desc_tf.paragraphs[0].font.size = Pt(18)
-
-            # グラフスライド
-            for fig, title, desc in fig_list:
-                img_bytes = fig.to_image(format="png", scale=2)
-                slide = prs.slides.add_slide(prs.slide_layouts[6])
-                # タイトル
-                title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.2), Inches(9), Inches(0.8))
-                title_tf = title_shape.text_frame
-                title_tf.text = title
-                title_tf.paragraphs[0].font.size = Pt(24)
-                # 説明文
-                desc_shape = slide.shapes.add_textbox(Inches(0.5), Inches(1.2), Inches(9), Inches(0.5))
-                desc_tf = desc_shape.text_frame
-                desc_tf.text = desc
-                desc_tf.paragraphs[0].font.size = Pt(14)
-                # グラフ画像
-                image_stream = io.BytesIO(img_bytes)
-                slide.shapes.add_picture(image_stream, Inches(0.5), Inches(2), Inches(9), Inches(5))
-            ppt_stream = io.BytesIO()
-            prs.save(ppt_stream)
-            ppt_stream.seek(0)
-            return ppt_stream
-
+        # ✅ CSV & PDF ダウンロード
         if figs:
-    # Export CSV and PDF
-    csv_buffer = io.StringIO()
-    pd.DataFrame({'グラフ数': [len(figs)]}).to_csv(csv_buffer, index=False)
-    st.download_button('📄 CSVでダウンロード', data=csv_buffer.getvalue(), file_name='graph_data.csv', mime='text/csv')
+            csv_buffer = io.StringIO()
+            pd.DataFrame({'グラフ数': [len(figs)]}).to_csv(csv_buffer, index=False)
+            st.download_button('📄 CSVでダウンロード', data=csv_buffer.getvalue(), file_name='graph_data.csv', mime='text/csv')
 
-    pdf_buffer = io.BytesIO()
-    c = canvas.Canvas(pdf_buffer, pagesize=A4)
-    c.drawString(100, 800, 'グラフレポート')
-    c.save()
-    pdf_buffer.seek(0)
-    st.download_button('📄 PDFでダウンロード', data=pdf_buffer, file_name='graph_report.pdf', mime='application/pdf')
-            # ファイル名生成
-            date_range = f"{start_date}-{end_date}"
-            if "ALL" in selected_codes:
-    pass
-            else:
-
-            st.download_button(
-                data=ppt_file,
-                file_name=file_name,
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            )
-
+            pdf_buffer = io.BytesIO()
+            c = canvas.Canvas(pdf_buffer, pagesize=A4)
+            c.drawString(100, 800, 'グラフレポート')
+            c.save()
+            pdf_buffer.seek(0)
+            st.download_button('📄 PDFでダウンロード', data=pdf_buffer, file_name='graph_report.pdf', mime='application/pdf')
 else:
     st.info("Excelファイルをアップロードしてください。")
