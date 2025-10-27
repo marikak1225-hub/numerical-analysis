@@ -256,11 +256,11 @@ if uploaded_file:
             st.download_button(
                 data=ppt_file,
                 file_name=file_name,
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
             )
 
 else:
     st.info("Excelファイルをアップロードしてください。")
-
 if figs:
     # ファイル名生成
     date_range = f"{start_date}-{end_date}"
@@ -274,13 +274,12 @@ if figs:
     for fig, title, desc in figs:
         for trace in fig.data:
             if hasattr(trace, 'x') and hasattr(trace, 'y'):
-                df_trace = pd.DataFrame({
+                csv_data.append(pd.DataFrame({
                     'カテゴリ': trace.x,
                     '値': trace.y,
                     '系列': trace.name,
                     'グラフタイトル': title
-                })
-                csv_data.append(df_trace)
+                }))
     if csv_data:
         csv_combined = pd.concat(csv_data)
         csv_buffer = io.StringIO()
