@@ -134,7 +134,7 @@ if uploaded_file:
                 yaxis="y2"
             ))
             fig.update_layout(
-                title=f"{title}の分布（件数＋取扱高）",
+                title=f"{title}（件数＋取扱高）",
                 xaxis=dict(title=category_col),
                 yaxis=dict(title="件数", side="left"),
                 yaxis2=dict(title="取扱高（円）", overlaying="y", side="right"),
