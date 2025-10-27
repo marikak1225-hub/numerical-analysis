@@ -168,6 +168,17 @@ if uploaded_file:
                 fig = create_dual_axis_grouped_chart(filtered_df, col, title)
                 st.plotly_chart(fig, use_container_width=True)
                 figs.append((fig, title, "件数と取扱高の二軸グラフ"))
+    if figs:
+        csv_buffer = io.StringIO()
+        pd.DataFrame({'グラフ数': [len(figs)]}).to_csv(csv_buffer, index=False)
+        st.download_button('📄 CSVでダウンロード', data=csv_buffer.getvalue(), file_name='graph_data.csv', mime='text/csv')
+
+        pdf_buffer = io.BytesIO()
+        c = canvas.Canvas(pdf_buffer, pagesize=A4)
+        c.drawString(100, 800, 'グラフレポート')
+        c.save()
+        pdf_buffer.seek(0)
+        st.download_button('📄 PDFでダウンロード', data=pdf_buffer, file_name='graph_report.pdf', mime='application/pdf')
 
         # ✅ クロス集計
         st.subheader("🔍 クロス集計（件数＋取扱高）")
@@ -212,31 +223,37 @@ if uploaded_file:
             st.plotly_chart(fig_cross, use_container_width=True)
             figs.append((fig_cross, "クロス集計", "選択した項目の件数と取扱高"))
 
+        # ✅ PowerPoint作成（概要スライド＋タイトル・説明文付き）
+            # 概要スライド
+            title_tf = title_shape.text_frame
+            title_tf.text = "後方数値データ分析 概要"
+
+            desc_tf = desc_shape.text_frame
+            desc_tf.text = f"期間: {start_date} ～ {end_date}\n媒体コード: {'ALL' if 'ALL' in selected_codes else '媒体コード指定'}\n件数: {len(filtered_df)}"
+
             # グラフスライド
             for fig, title, desc in fig_list:
                 img_bytes = fig.to_image(format="png", scale=2)
-                slide = prs.slides.add_slide(prs.slide_layouts[6])
                 # タイトル
+                title_tf = title_shape.text_frame
+                title_tf.text = title
+                # 説明文
+                desc_tf = desc_shape.text_frame
+                desc_tf.text = desc
+                # グラフ画像
+                image_stream = io.BytesIO(img_bytes)
+
         if figs:
-    # Export CSV and PDF
-    csv_buffer = io.StringIO()
-    pd.DataFrame({'グラフ数': [len(figs)]}).to_csv(csv_buffer, index=False)
-    pdf_buffer = io.BytesIO()
-    c = canvas.Canvas(pdf_buffer, pagesize=A4)
-    c.drawString(100, 800, 'グラフレポート')
-    c.save()
-    pdf_buffer.seek(0)
+            # ファイル名生成
+            date_range = f"{start_date}-{end_date}"
+            if "ALL" in selected_codes:
+            else:
+
             st.download_button(
+                label="📥 全グラフをPowerPointでダウンロード",
+                file_name=file_name,
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            )
+
 else:
     st.info("Excelファイルをアップロードしてください。")
-if figs:
-    csv_buffer = io.StringIO()
-    pd.DataFrame({'グラフ数': [len(figs)]}).to_csv(csv_buffer, index=False)
-    st.download_button('📄 CSVでダウンロード', data=csv_buffer.getvalue(), file_name='graph_data.csv', mime='text/csv')
-
-    pdf_buffer = io.BytesIO()
-    c = canvas.Canvas(pdf_buffer, pagesize=A4)
-    c.drawString(100, 800, 'グラフレポート')
-    c.save()
-    pdf_buffer.seek(0)
-    st.download_button('📄 PDFでダウンロード', data=pdf_buffer, file_name='graph_report.pdf', mime='application/pdf')
