@@ -259,7 +259,7 @@ if uploaded_file:
     c.save()
     pdf_buffer.seek(0)
     st.download_button('📄 PDFでダウンロード', data=pdf_buffer, file_name='graph_report.pdf', mime='application/pdf')
-            # ファイル名生成
+            # ファイル名
             date_range = f"{start_date}-{end_date}"
             if "ALL" in selected_codes:
             else:
