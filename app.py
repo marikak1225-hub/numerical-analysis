@@ -261,6 +261,7 @@ if uploaded_file:
 
 else:
     st.info("Excelファイルをアップロードしてください。")
+
 if figs:
     # ファイル名生成
     date_range = f"{start_date}-{end_date}"
@@ -273,23 +274,21 @@ if figs:
     csv_data = []
     for fig, title, desc in figs:
         for trace in fig.data:
-            if hasattr(trace, 'x') and hasattr(trace, 'y'):
-                csv_data.append(pd.DataFrame({
-                    'カテゴリ': trace.x,
-                    '値': trace.y,
-                    '系列': trace.name,
-                    'グラフタイトル': title
-                }))
-    if csv_data:
-        csv_combined = pd.concat(csv_data)
-        csv_buffer = io.StringIO()
-        csv_combined.to_csv(csv_buffer, index=False)
-        st.download_button(
-            label="📄 グラフデータをCSVでダウンロード",
-            data=csv_buffer.getvalue(),
-            file_name=f"{file_prefix}.csv",
-            mime="text/csv"
-        )
+            csv_data.append(pd.DataFrame({
+                'カテゴリ': trace.x,
+                '値': trace.y,
+                '系列': trace.name,
+                'グラフタイトル': title
+            }))
+    csv_combined = pd.concat(csv_data)
+    csv_buffer = io.StringIO()
+    csv_combined.to_csv(csv_buffer, index=False)
+    st.download_button(
+        label="📄 グラフデータをCSVでダウンロード",
+        data=csv_buffer.getvalue(),
+        file_name=f"{file_prefix}.csv",
+        mime="text/csv"
+    )
 
     # PDF出力
     pdf_buffer = io.BytesIO()
