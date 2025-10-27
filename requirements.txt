@@ -4,3 +4,4 @@ plotly
 python-pptx
 kaleido
 openpyxl
+reportlab
