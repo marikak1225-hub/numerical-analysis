@@ -239,7 +239,7 @@ if uploaded_file:
                 desc_tf = desc_shape.text_frame
                 desc_tf.text = desc
                 desc_tf.paragraphs[0].font.size = Pt(14)
-                # グラフ画像
+                # グラフ
                 image_stream = io.BytesIO(img_bytes)
                 slide.shapes.add_picture(image_stream, Inches(0.5), Inches(2), Inches(9), Inches(5))
             ppt_stream = io.BytesIO()
