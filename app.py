@@ -214,8 +214,15 @@ if uploaded_file:
             st.plotly_chart(fig_cross, use_container_width=True)
             figs.append((fig_cross, "クロス集計", "選択した項目の件数と取扱高"))
 
-
+        
 if figs:
+    # ファイル名生成
+    date_range = f"{start_date}-{end_date}"
+    if "ALL" in selected_codes:
+        file_prefix = f"後方数値データ分析_{date_range}_ALL"
+    else:
+        file_prefix = f"後方数値データ分析_{date_range}_媒体コード指定"
+
     # ✅ CSV出力
     csv_data = []
     for fig, title, desc in figs:
@@ -232,7 +239,7 @@ if figs:
     st.download_button(
         label="📄 グラフデータをCSVでダウンロード",
         data=csv_buffer.getvalue(),
-        file_name="グラフデータ.csv",
+        file_name=f"{file_prefix}.csv",
         mime="text/csv"
     )
 
@@ -240,6 +247,7 @@ if figs:
     pdf_buffer = io.BytesIO()
     c = canvas.Canvas(pdf_buffer, pagesize=A4)
     width, height = A4
+
     for fig, title, desc in figs:
         img_bytes = fig.to_image(format="png", scale=2)
         image = ImageReader(io.BytesIO(img_bytes))
@@ -249,25 +257,14 @@ if figs:
         c.drawString(40, height - 60, desc)
         c.drawImage(image, 40, 100, width=500, preserveAspectRatio=True, mask='auto')
         c.showPage()
+
     c.save()
     pdf_buffer.seek(0)
     st.download_button(
         label="📄 グラフをPDFでダウンロード",
         data=pdf_buffer,
-        file_name="グラフレポート.pdf",
+        file_name=f"{file_prefix}.pdf",
         mime="application/pdf"
     )
-else:
-    st.info("Excelファイルをアップロードしてください。")
-                file_name = f"後方数値データ分析_{date_range}_ALL_媒体コード指定.pptx"
-
-            ppt_file = create_ppt(figs)
-            st.download_button(
-                label="📥 全グラフをPowerPointでダウンロード",
-                data=ppt_file,
-                file_name=file_name,
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            )
-
 else:
     st.info("Excelファイルをアップロードしてください。")
