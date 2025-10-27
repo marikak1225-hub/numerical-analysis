@@ -14,10 +14,20 @@ uploaded_file = st.file_uploader("Excelファイルをアップロードして�
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    # ✅ データ前処理
+    # ✅ 列名整形
     df.columns = [str(c).strip().replace('\u3000', '').replace('\xa0', '') for c in df.columns]
+
+    # ✅ 日付変換
     if '申込日' in df.columns:
         df['申込日'] = pd.to_datetime(df['申込日'], errors='coerce')
+
+    # ✅ 取扱高の定義（申込当月＋翌月末＋翌々月末）
+    amount_cols = ['取扱金額_申込当月', '取扱金額_申込翌月末', '取扱金額_申込翌々月末']
+    missing_cols = [col for col in amount_cols if col not in df.columns]
+    if missing_cols:
+        st.error(f"以下の列が不足しています: {', '.join(missing_cols)}")
+    else:
+        df['取扱高'] = df[amount_cols].sum(axis=1)
 
     # ✅ サイドバー：フィルタ設定
     st.sidebar.header("フィルタ設定")
@@ -50,7 +60,7 @@ if uploaded_file:
 
         chart_cols = [("性別", "性別"), ("年代別", "年代"), ("年収帯", "年収帯")]
         for title, col in chart_cols:
-            if col in filtered_df.columns:
+            if col in filtered_df.columns and '取扱高' in filtered_df.columns:
                 fig = create_dual_axis_chart(filtered_df, col, title)
                 st.plotly_chart(fig, use_container_width=True)
                 figs.append((fig, title))
