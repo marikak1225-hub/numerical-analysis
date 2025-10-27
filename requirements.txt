@@ -4,5 +4,3 @@ plotly
 python-pptx
 kaleido
 openpyxl
-cairosvg
-Pillow
