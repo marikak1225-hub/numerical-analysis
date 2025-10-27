@@ -47,6 +47,8 @@ if uploaded_file:
     if len(filtered_df) == 0:
         st.warning("データがありません。フィルタ条件を確認してください。")
     else:
+    ppt_file = ppt_stream
+    file_name = f"後方数値分析_{date_range}.pptx"
         # ✅ グループ化関数
         def group_age(x):
             if pd.isna(x): return "不明"
@@ -264,6 +266,8 @@ if uploaded_file:
             if "ALL" in selected_codes:
     pass
             else:
+    ppt_file = ppt_stream
+    file_name = f"後方数値分析_{date_range}.pptx"
 
             st.download_button(
                 data=ppt_file,
@@ -272,4 +276,6 @@ if uploaded_file:
             )
 
 else:
+    ppt_file = ppt_stream
+    file_name = f"後方数値分析_{date_range}.pptx"
     st.info("Excelファイルをアップロードしてください。")
