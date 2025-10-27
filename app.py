@@ -214,57 +214,16 @@ if uploaded_file:
             st.plotly_chart(fig_cross, use_container_width=True)
             figs.append((fig_cross, "クロス集計", "選択した項目の件数と取扱高"))
 
+        # ✅ PowerPoint作成（概要スライド＋タイトル・説明文付き）
         
-if figs:
-    # ファイル名生成
-    date_range = f"{start_date}-{end_date}"
-    if "ALL" in selected_codes:
-        file_prefix = f"後方数値データ分析_{date_range}_ALL"
-    else:
-        file_prefix = f"後方数値データ分析_{date_range}_媒体コード指定"
+        if figs:
+            # ファイル名生成
+            date_range = f"{start_date}-{end_date}"
+            if "ALL" in selected_codes:
+                file_name = f"後方数値データ分析_{date_range}_ALL.pptx"
+            else:
+                file_name = f"後方数値データ分析_{date_range}_ALL_媒体コード指定.pptx"
 
-    # ✅ CSV出力
-    csv_data = []
-    for fig, title, desc in figs:
-        for trace in fig.data:
-            csv_data.append(pd.DataFrame({
-                'カテゴリ': trace.x,
-                '値': trace.y,
-                '系列': trace.name,
-                'グラフタイトル': title
-            }))
-    csv_combined = pd.concat(csv_data)
-    csv_buffer = io.StringIO()
-    csv_combined.to_csv(csv_buffer, index=False)
-    st.download_button(
-        label="📄 グラフデータをCSVでダウンロード",
-        data=csv_buffer.getvalue(),
-        file_name=f"{file_prefix}.csv",
-        mime="text/csv"
-    )
-
-    # ✅ PDF出力
-    pdf_buffer = io.BytesIO()
-    c = canvas.Canvas(pdf_buffer, pagesize=A4)
-    width, height = A4
-
-    for fig, title, desc in figs:
-        img_bytes = fig.to_image(format="png", scale=2)
-        image = ImageReader(io.BytesIO(img_bytes))
-        c.setFont("Helvetica-Bold", 16)
-        c.drawString(40, height - 40, title)
-        c.setFont("Helvetica", 12)
-        c.drawString(40, height - 60, desc)
-        c.drawImage(image, 40, 100, width=500, preserveAspectRatio=True, mask='auto')
-        c.showPage()
-
-    c.save()
-    pdf_buffer.seek(0)
-    st.download_button(
-        label="📄 グラフをPDFでダウンロード",
-        data=pdf_buffer,
-        file_name=f"{file_prefix}.pdf",
-        mime="application/pdf"
-    )
+            
 else:
     st.info("Excelファイルをアップロードしてください。")
