@@ -4,6 +4,7 @@ import plotly.graph_objects as go
 from pptx import Presentation
 from pptx.util import Inches, Pt
 import io
+import cairosvg
 
 st.set_page_config(page_title="後方数値データ分析", layout="wide")
 st.title("📊 後方数値データ分析ダッシュボード")
@@ -214,6 +215,12 @@ if uploaded_file:
             st.plotly_chart(fig_cross, use_container_width=True)
             figs.append((fig_cross, "クロス集計", "選択した項目の件数と取扱高"))
 
+        # ✅ SVG→PNG変換関数
+        def fig_to_png(fig):
+            svg_bytes = fig.to_image(format="svg")
+            png_bytes = cairosvg.svg2png(bytestring=svg_bytes)
+            return png_bytes
+
         # ✅ PowerPoint作成（概要スライド＋タイトル・説明文付き）
         def create_ppt(fig_list):
             prs = Presentation()
@@ -231,7 +238,7 @@ if uploaded_file:
 
             # グラフスライド
             for fig, title, desc in fig_list:
-                img_bytes = fig.to_image(format="png", scale=2)
+                png_bytes = fig_to_png(fig)
                 slide = prs.slides.add_slide(prs.slide_layouts[6])
                 # タイトル
                 title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.2), Inches(9), Inches(0.8))
@@ -244,15 +251,15 @@ if uploaded_file:
                 desc_tf.text = desc
                 desc_tf.paragraphs[0].font.size = Pt(14)
                 # グラフ画像
-                image_stream = io.BytesIO(img_bytes)
+                image_stream = io.BytesIO(png_bytes)
                 slide.shapes.add_picture(image_stream, Inches(0.5), Inches(2), Inches(9), Inches(5))
+
             ppt_stream = io.BytesIO()
             prs.save(ppt_stream)
             ppt_stream.seek(0)
             return ppt_stream
 
         if figs:
-            # ファイル名生成
             date_range = f"{start_date}-{end_date}"
             if "ALL" in selected_codes:
                 file_name = f"後方数値データ分析_{date_range}_ALL.pptx"
