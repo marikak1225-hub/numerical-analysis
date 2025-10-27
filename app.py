@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+from pptx import Presentation
+from pptx.util import Inches, Pt
 import io
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
 
 st.set_page_config(page_title="後方数値データ分析", layout="wide")
 st.title("📊 後方数値データ分析ダッシュボード")
@@ -215,37 +215,57 @@ if uploaded_file:
             figs.append((fig_cross, "クロス集計", "選択した項目の件数と取扱高"))
 
         # ✅ PowerPoint作成（概要スライド＋タイトル・説明文付き）
+        def create_ppt(fig_list):
+            prs = Presentation()
             # 概要スライド
             slide = prs.slides.add_slide(prs.slide_layouts[6])
+            title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.5), Inches(9), Inches(1))
             title_tf = title_shape.text_frame
             title_tf.text = "後方数値データ分析 概要"
+            title_tf.paragraphs[0].font.size = Pt(28)
 
+            desc_shape = slide.shapes.add_textbox(Inches(0.5), Inches(1.8), Inches(9), Inches(3))
             desc_tf = desc_shape.text_frame
             desc_tf.text = f"期間: {start_date} ～ {end_date}\n媒体コード: {'ALL' if 'ALL' in selected_codes else '媒体コード指定'}\n件数: {len(filtered_df)}"
+            desc_tf.paragraphs[0].font.size = Pt(18)
 
             # グラフスライド
             for fig, title, desc in fig_list:
                 img_bytes = fig.to_image(format="png", scale=2)
                 slide = prs.slides.add_slide(prs.slide_layouts[6])
                 # タイトル
+                title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.2), Inches(9), Inches(0.8))
                 title_tf = title_shape.text_frame
                 title_tf.text = title
+                title_tf.paragraphs[0].font.size = Pt(24)
                 # 説明文
+                desc_shape = slide.shapes.add_textbox(Inches(0.5), Inches(1.2), Inches(9), Inches(0.5))
                 desc_tf = desc_shape.text_frame
                 desc_tf.text = desc
+                desc_tf.paragraphs[0].font.size = Pt(14)
                 # グラフ画像
                 image_stream = io.BytesIO(img_bytes)
+                slide.shapes.add_picture(image_stream, Inches(0.5), Inches(2), Inches(9), Inches(5))
+            ppt_stream = io.BytesIO()
+            prs.save(ppt_stream)
+            ppt_stream.seek(0)
+            return ppt_stream
 
         if figs:
-    csv_buffer = io.StringIO()
-    pd.DataFrame({'グラフ数': [len(figs)]}).to_csv(csv_buffer, index=False)
-    st.download_button('📄 CSVでダウンロード', data=csv_buffer.getvalue(), file_name='graph_data.csv', mime='text/csv')
-    pdf_buffer = io.BytesIO()
-    c = canvas.Canvas(pdf_buffer, pagesize=A4)
-    c.drawString(100, 800, 'グラフレポート')
-    c.save()
-    pdf_buffer.seek(0)
-    st.download_button('📄 PDFでダウンロード', data=pdf_buffer, file_name='graph_report.pdf', mime='application/pdf')
+            # ファイル名生成
+            date_range = f"{start_date}-{end_date}"
+            if "ALL" in selected_codes:
+                file_name = f"後方数値データ分析_{date_range}_ALL.pptx"
+            else:
+                file_name = f"後方数値データ分析_{date_range}_ALL_媒体コード指定.pptx"
+
+            ppt_file = create_ppt(figs)
+            st.download_button(
+                label="📥 全グラフをPowerPointでダウンロード",
+                data=ppt_file,
+                file_name=file_name,
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            )
 
 else:
     st.info("Excelファイルをアップロードしてください。")
