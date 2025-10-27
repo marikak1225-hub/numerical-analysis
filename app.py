@@ -273,3 +273,4 @@ if uploaded_file:
 
 else:
     st.info("Excelファイルをアップロードしてください。")
+    
