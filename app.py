@@ -33,6 +33,7 @@ if uploaded_file:
     start_date, end_date = st.sidebar.date_input("申込日範囲", [df['申込日'].min(), df['申込日'].max()])
     media_codes = df['媒体コード'].dropna().unique().tolist() if '媒体コード' in df.columns else []
     selected_codes = st.sidebar.multiselect("媒体コードを選択（ALL選択で全件）", ["ALL"] + media_codes, default=["ALL"])
+        selected_codes = st.sidebar.multiselect("性別を選択（ALL選択で全件）" df['性別'],default=["ALL"])
 
     filtered_df = df[(df['申込日'] >= pd.to_datetime(start_date)) & (df['申込日'] <= pd.to_datetime(end_date))]
     if "ALL" not in selected_codes:
