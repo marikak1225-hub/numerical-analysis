@@ -13,12 +13,16 @@ category_orders = {
     "勤続年数帯": ['0', '1-3', '4-9', '10-20', '21以上']
 }
 
-# サイドバー：フィルタ設定（常に表示）
+# サイドバー：フィルタ設定（順序を指定）
 st.sidebar.header("フィルタ設定")
-gender_options = ["ALL", "男性", "女性"]
-selected_genders = st.sidebar.multiselect("性別を選択", gender_options, default=["ALL"])
 
+# ファイルアップロード
 uploaded_file = st.file_uploader("Excelファイルをアップロードしてください", type=["xlsx"])
+
+# 初期値（ファイル未アップロード時の安全対策）
+start_date, end_date = None, None
+media_codes, selected_codes = [], ["ALL"]
+selected_genders = ["ALL"]
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
@@ -40,10 +44,12 @@ if uploaded_file:
 
     df['取扱高'] = df[['取扱金額_申込当月', '取扱金額_申込翌月末', '取扱金額_申込翌々月末']].sum(axis=1)
 
-    # 日付フィルタ
+    # フィルタUI（順序：申込日 → 媒体コード → 性別）
     start_date, end_date = st.sidebar.date_input("申込日範囲", [df['申込日'].min(), df['申込日'].max()])
     media_codes = df['媒体コード'].dropna().unique().tolist() if '媒体コード' in df.columns else []
     selected_codes = st.sidebar.multiselect("媒体コードを選択（ALL選択で全件）", ["ALL"] + media_codes, default=["ALL"])
+    gender_options = ["ALL", "男性", "女性"]
+    selected_genders = st.sidebar.multiselect("性別を選択", gender_options, default=["ALL"])
 
     # フィルタ処理
     filtered_df = df[(df['申込日'] >= pd.to_datetime(start_date)) & (df['申込日'] <= pd.to_datetime(end_date))]
