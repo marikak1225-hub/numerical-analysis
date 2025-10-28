@@ -36,7 +36,7 @@ if uploaded_file:
     selected_codes = st.sidebar.multiselect("媒体コードを選択（ALL選択で全件）", ["ALL"] + media_codes, default=["ALL"])
 
     # 性別フィルタ追加
-    gender_options = ["ALL", "男性", "女性"]
+    gender_options = ["ALL", "1_男性", "2_女性"]
     selected_genders = st.sidebar.multiselect("性別を選択", gender_options, default=["ALL"])
 
     # フィルタ処理
