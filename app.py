@@ -18,8 +18,8 @@ st.sidebar.header("フィルタ設定")
 gender_options = ["ALL", "男性", "女性"]
 selected_genders = st.sidebar.multiselect("性別を選択", gender_options, default=["ALL"])
 
-# ファイルアップロード
 uploaded_file = st.file_uploader("Excelファイルをアップロードしてください", type=["xlsx"])
+
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
     df.columns = [str(c).strip().replace('\u3000', '').replace('\xa0', '') for c in df.columns]
