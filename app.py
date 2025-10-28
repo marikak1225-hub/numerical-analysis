@@ -18,6 +18,10 @@ if uploaded_file:
     df = pd.read_excel(uploaded_file)
     df.columns = [str(c).strip().replace('\u3000', '').replace('\xa0', '') for c in df.columns]
 
+    # 性別列の整形（例：1_男性 → 男性）
+    if '性別' in df.columns:
+        df['性別'] = df['性別'].astype(str).str.extract(r'_(男性|女性)')
+
     numeric_cols = ['年齢', '年収', '同借希望額', '住宅ローン返済月額', '勤続年数', '他社借入件数',
                     '取扱金額_申込当月', '取扱金額_申込翌月末', '取扱金額_申込翌々月末']
     for col in numeric_cols:
@@ -35,9 +39,9 @@ if uploaded_file:
     media_codes = df['媒体コード'].dropna().unique().tolist() if '媒体コード' in df.columns else []
     selected_codes = st.sidebar.multiselect("媒体コードを選択（ALL選択で全件）", ["ALL"] + media_codes, default=["ALL"])
 
-    # 性別フィルタ追加
-    if '性別' in df.columns:
-    df['性別'] = df['性別'].astype(str).str.extract(r'_(男性|女性)')
+    # 性別フィルタ
+    gender_options = ["ALL", "男性", "女性"]
+    selected_genders = st.sidebar.multiselect("性別を選択", gender_options, default=["ALL"])
 
     # フィルタ処理
     filtered_df = df[(df['申込日'] >= pd.to_datetime(start_date)) & (df['申込日'] <= pd.to_datetime(end_date))]
