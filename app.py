@@ -13,15 +13,22 @@ category_orders = {
     "勤続年数帯": ['0', '1-3', '4-9', '10-20', '21以上']
 }
 
+# サイドバー：フィルタ設定（常に表示）
+st.sidebar.header("フィルタ設定")
+gender_options = ["ALL", "男性", "女性"]
+selected_genders = st.sidebar.multiselect("性別を選択", gender_options, default=["ALL"])
+
+# ファイルアップロード
 uploaded_file = st.file_uploader("Excelファイルをアップロードしてください", type=["xlsx"])
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
     df.columns = [str(c).strip().replace('\u3000', '').replace('\xa0', '') for c in df.columns]
 
-    # 性別列の整形（例：1_男性 → 男性）
+    # 性別列整形（例：1_男性 → 男性）
     if '性別' in df.columns:
         df['性別'] = df['性別'].astype(str).str.extract(r'_(男性|女性)')
 
+    # 数値列変換
     numeric_cols = ['年齢', '年収', '同借希望額', '住宅ローン返済月額', '勤続年数', '他社借入件数',
                     '取扱金額_申込当月', '取扱金額_申込翌月末', '取扱金額_申込翌々月末']
     for col in numeric_cols:
@@ -33,15 +40,10 @@ if uploaded_file:
 
     df['取扱高'] = df[['取扱金額_申込当月', '取扱金額_申込翌月末', '取扱金額_申込翌々月末']].sum(axis=1)
 
-    # サイドバー：フィルタ設定
-    st.sidebar.header("フィルタ設定")
+    # 日付フィルタ
     start_date, end_date = st.sidebar.date_input("申込日範囲", [df['申込日'].min(), df['申込日'].max()])
     media_codes = df['媒体コード'].dropna().unique().tolist() if '媒体コード' in df.columns else []
     selected_codes = st.sidebar.multiselect("媒体コードを選択（ALL選択で全件）", ["ALL"] + media_codes, default=["ALL"])
-
-    # 性別フィルタ
-    gender_options = ["ALL", "男性", "女性"]
-    selected_genders = st.sidebar.multiselect("性別を選択", gender_options, default=["ALL"])
 
     # フィルタ処理
     filtered_df = df[(df['申込日'] >= pd.to_datetime(start_date)) & (df['申込日'] <= pd.to_datetime(end_date))]
