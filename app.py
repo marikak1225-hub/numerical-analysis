@@ -36,8 +36,8 @@ if uploaded_file:
     selected_codes = st.sidebar.multiselect("媒体コードを選択（ALL選択で全件）", ["ALL"] + media_codes, default=["ALL"])
 
     # 性別フィルタ追加
-    gender_options = ["ALL", "1_男性", "2_女性"]
-    selected_genders = st.sidebar.multiselect("性別を選択", gender_options, default=["ALL"])
+    if '性別' in df.columns:
+    df['性別'] = df['性別'].astype(str).str.extract(r'_(男性|女性)')
 
     # フィルタ処理
     filtered_df = df[(df['申込日'] >= pd.to_datetime(start_date)) & (df['申込日'] <= pd.to_datetime(end_date))]
