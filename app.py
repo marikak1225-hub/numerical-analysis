@@ -52,6 +52,7 @@ if uploaded_data:
     if '申込日' in df.columns:
         df['申込日'] = pd.to_datetime(df['申込日'], errors='coerce')
 
+    # 取扱高計算
     df['取扱高'] = df[['取扱金額_申込当月', '取扱金額_申込翌月末', '取扱金額_申込翌々月末']].sum(axis=1)
 
     # 承認区分のNULL処理
@@ -91,13 +92,84 @@ if uploaded_data:
 
     st.write(f"件数: {len(filtered_df)}")
 
+    # 年齢を10刻みでグループ化
+    def group_age_10(x):
+        if pd.isna(x): return "不明"
+        try:
+            x = int(x)
+        except:
+            return "不明"
+        if x < 10: return "0-9"
+        elif x < 20: return "10-19"
+        elif x < 30: return "20-29"
+        elif x < 40: return "30-39"
+        elif x < 50: return "40-49"
+        elif x < 60: return "50-59"
+        elif x < 70: return "60-69"
+        elif x < 80: return "70-79"
+        elif x < 90: return "80-89"
+        else: return "90以上"
+
+    filtered_df['年齢'] = filtered_df['年齢'].apply(group_age_10)
+
+    # 年収帯・借入希望額帯・住宅ローン帯・勤続年数帯も分類
+    def group_income(x):
+        if pd.isna(x): return "不明"
+        if x < 500: return "0-499"
+        elif x < 1000: return "500-999"
+        else: return "1000以上"
+
+    def group_loan(x):
+        if pd.isna(x): return "不明"
+        if x == 0: return "0"
+        elif x < 10: return "1-9"
+        elif x < 20: return "10-19"
+        elif x < 30: return "20-29"
+        elif x < 40: return "30-39"
+        elif x < 50: return "40-49"
+        elif x < 60: return "50-59"
+        elif x < 70: return "60-69"
+        elif x < 80: return "70-79"
+        elif x < 90: return "80-89"
+        elif x < 100: return "90-99"
+        elif x < 200: return "100-199"
+        elif x < 300: return "200-299"
+        else: return "300以上"
+
+    def group_mortgage(x):
+        if pd.isna(x): return "不明"
+        if x == 0: return "0"
+        elif x < 10: return "1-9"
+        elif x < 20: return "10-19"
+        elif x < 30: return "20-29"
+        elif x < 40: return "30-39"
+        elif x < 50: return "40-49"
+        elif x < 60: return "50-59"
+        elif x < 70: return "60-69"
+        elif x < 80: return "70-79"
+        elif x < 90: return "80-89"
+        elif x < 100: return "90-99"
+        else: return "100以上"
+
+    def group_years(x):
+        if pd.isna(x): return "不明"
+        if x == 0: return "0"
+        elif x <= 3: return "1-3"
+        elif x <= 9: return "4-9"
+        elif x <= 20: return "10-20"
+        else: return "21以上"
+
+    filtered_df['年収帯'] = filtered_df['年収'].apply(group_income)
+    filtered_df['借入希望額帯'] = filtered_df['同借希望額'].apply(group_loan)
+    filtered_df['住宅ローン帯'] = filtered_df['住宅ローン返済月額'].apply(group_mortgage)
+    filtered_df['勤続年数帯'] = filtered_df['勤続年数'].apply(group_years)
+
     # テーブル表示（会社名を媒体コードの次に追加）
     display_cols = []
     if "媒体コード" in filtered_df.columns:
         display_cols.append("媒体コード")
     if "会社名" in filtered_df.columns:
         display_cols.append("会社名")
-    # 残りの列を追加
     display_cols += [col for col in filtered_df.columns if col not in display_cols]
     st.dataframe(filtered_df[display_cols])
 
@@ -119,10 +191,14 @@ if uploaded_data:
         ("住宅ローン返済月額", "住宅ローン帯"),
         ("勤務状況", "勤務状況"),
         ("勤続年数", "勤続年数帯"),
-        ("他社借入件数", "他社借入件数")
+        ("他社借入件数", "他社借入件数"),
+        ("会社名", "会社名"),
+        ("承認区分", "承認区分")
     ]
 
     def create_dual_axis_grouped_chart(df, category_col, title):
+        if category_col not in df.columns or df[category_col].dropna().shape[0] == 0:
+            return go.Figure()
         if category_col in category_orders:
             ordered_categories = category_orders[category_col]
             count_data = df[category_col].value_counts().reindex(ordered_categories).fillna(0)
@@ -169,7 +245,7 @@ if uploaded_data:
     # クロス集計
     st.subheader("🔍 クロス集計（件数＋取扱高）")
     selected_cols = st.multiselect("クロス集計する項目を選択", [c for _, c in chart_cols])
-    if len(selected_cols) >= 2:
+    if len(selected_cols) >= 2 and all(col in filtered_df.columns for col in selected_cols[:2]):
         pivot_count = pd.pivot_table(filtered_df, index=selected_cols[0], columns=selected_cols[1], aggfunc='size', fill_value=0)
         pivot_sum = pd.pivot_table(filtered_df, index=selected_cols[0], columns=selected_cols[1], values='取扱高', aggfunc='sum', fill_value=0)
         st.write("件数")
@@ -205,4 +281,3 @@ if uploaded_data:
         )
         st.plotly_chart(fig_cross, use_container_width=True)
 else:
-    st.info("Excelファイルをアップロードしてください。")
