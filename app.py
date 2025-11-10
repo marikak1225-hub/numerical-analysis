@@ -25,8 +25,11 @@ master = pd.read_excel(master_path)
 # 列名正規化
 master.columns = [str(c).strip().replace('\u3000', '').replace('\xa0', '') for c in master.columns]
 
+# 「会社名」を「媒体名」に変更
+master.rename(columns={"会社名": "媒体名"}, inplace=True)
+
 # id_varsとコード列を動的に取得
-id_vars = [col for col in master.columns if col in ["会社名", "カテゴリ"]]
+id_vars = [col for col in master.columns if col in ["媒体名", "カテゴリ"]]
 code_cols = [col for col in master.columns if col not in id_vars]
 
 # 縦持ち変換
@@ -70,8 +73,8 @@ if uploaded_data:
     gender_options = ["ALL", "男性", "女性"]
     selected_genders = st.sidebar.multiselect("性別を選択", gender_options, default=["ALL"])
 
-    company_options = ["ALL"] + (merged_df["会社名"].dropna().unique().tolist() if "会社名" in merged_df.columns else [])
-    selected_companies = st.sidebar.multiselect("会社名を選択", company_options, default=["ALL"])
+    company_options = ["ALL"] + (merged_df["媒体名"].dropna().unique().tolist() if "媒体名" in merged_df.columns else [])
+    selected_companies = st.sidebar.multiselect("媒体名を選択", company_options, default=["ALL"])
 
     category_options = ["ALL"] + (merged_df["カテゴリ"].dropna().unique().tolist() if "カテゴリ" in merged_df.columns else [])
     selected_categories = st.sidebar.multiselect("カテゴリを選択", category_options, default=["ALL"])
@@ -83,8 +86,8 @@ if uploaded_data:
     filtered_df = merged_df[(merged_df['申込日'] >= pd.to_datetime(start_date)) & (merged_df['申込日'] <= pd.to_datetime(end_date))]
     if "ALL" not in selected_genders and '性別' in filtered_df.columns:
         filtered_df = filtered_df[filtered_df['性別'].isin(selected_genders)]
-    if "ALL" not in selected_companies and "会社名" in filtered_df.columns:
-        filtered_df = filtered_df[filtered_df["会社名"].isin(selected_companies)]
+    if "ALL" not in selected_companies and "媒体名" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["媒体名"].isin(selected_companies)]
     if "ALL" not in selected_categories and "カテゴリ" in filtered_df.columns:
         filtered_df = filtered_df[filtered_df["カテゴリ"].isin(selected_categories)]
     if "ALL" not in selected_approval and "承認区分" in filtered_df.columns:
@@ -164,12 +167,12 @@ if uploaded_data:
     filtered_df['住宅ローン帯'] = filtered_df['住宅ローン返済月額'].apply(group_mortgage)
     filtered_df['勤続年数帯'] = filtered_df['勤続年数'].apply(group_years)
 
-    # テーブル表示（会社名を媒体コードの次に追加）
+    # テーブル表示（媒体名を媒体コードの次に追加）
     display_cols = []
     if "媒体コード" in filtered_df.columns:
         display_cols.append("媒体コード")
-    if "会社名" in filtered_df.columns:
-        display_cols.append("会社名")
+    if "媒体名" in filtered_df.columns:
+        display_cols.append("媒体名")
     display_cols += [col for col in filtered_df.columns if col not in display_cols]
     st.dataframe(filtered_df[display_cols])
 
@@ -192,7 +195,7 @@ if uploaded_data:
         ("勤務状況", "勤務状況"),
         ("勤続年数", "勤続年数帯"),
         ("他社借入件数", "他社借入件数"),
-        ("会社名", "会社名"),
+        ("媒体名", "媒体名"),
         ("承認区分", "承認区分")
     ]
 
