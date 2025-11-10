@@ -26,7 +26,7 @@ master = pd.read_excel(master_path)
 master.columns = [str(c).strip().replace('\u3000', '').replace('\xa0', '') for c in master.columns]
 
 # id_varsとコード列を動的に取得
-id_vars = [col for col in master.columns if col in ["会社名カイシャメイ", "カテゴリ"]]
+id_vars = [col for col in master.columns if col in ["会社名", "カテゴリ"]]
 code_cols = [col for col in master.columns if col not in id_vars]
 
 # 縦持ち変換
@@ -62,7 +62,7 @@ if uploaded_data:
     start_date, end_date = st.sidebar.date_input("申込日範囲", [merged_df['申込日'].min(), merged_df['申込日'].max()])
     gender_options = ["ALL", "男性", "女性"]
     selected_genders = st.sidebar.multiselect("性別を選択", gender_options, default=["ALL"])
-    company_options = ["ALL"] + merged_df["会社名カイシャメイ"].dropna().unique().tolist()
+    company_options = ["ALL"] + merged_df["会社名"].dropna().unique().tolist()
     selected_companies = st.sidebar.multiselect("会社名を選択", company_options, default=["ALL"])
     category_options = ["ALL"] + merged_df["カテゴリ"].dropna().unique().tolist()
     selected_categories = st.sidebar.multiselect("カテゴリを選択", category_options, default=["ALL"])
@@ -72,7 +72,7 @@ if uploaded_data:
     if "ALL" not in selected_genders and '性別' in filtered_df.columns:
         filtered_df = filtered_df[filtered_df['性別'].isin(selected_genders)]
     if "ALL" not in selected_companies:
-        filtered_df = filtered_df[filtered_df['会社名カイシャメイ'].isin(selected_companies)]
+        filtered_df = filtered_df[filtered_df['会社名'].isin(selected_companies)]
     if "ALL" not in selected_categories:
         filtered_df = filtered_df[filtered_df['カテゴリ'].isin(selected_categories)]
 
