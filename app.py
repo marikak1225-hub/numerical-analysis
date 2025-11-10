@@ -1,6 +1,10 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import io
+from PIL import Image
+import openpyxl
+from openpyxl.drawing.image import Image as XLImage
 
 # ページ設定
 st.set_page_config(page_title="後方数値データ分析", layout="wide")
@@ -167,19 +171,6 @@ if uploaded_data:
     filtered_df['住宅ローン帯'] = filtered_df['住宅ローン返済月額'].apply(group_mortgage)
     filtered_df['勤続年数帯'] = filtered_df['勤続年数'].apply(group_years)
 
-    # テーブル表示（媒体名を媒体コードの次に追加）
-    display_cols = []
-    if "媒体コード" in filtered_df.columns:
-        display_cols.append("媒体コード")
-    if "媒体名" in filtered_df.columns:
-        display_cols.append("媒体名")
-    display_cols += [col for col in filtered_df.columns if col not in display_cols]
-    st.dataframe(filtered_df[display_cols])
-
-    # CSVダウンロード
-    csv = filtered_df.to_csv(index=False).encode('utf-8-sig')
-    st.download_button(label="CSVをダウンロード", data=csv, file_name="filtered_data.csv", mime="text/csv")
-
     # グラフ表示
     st.subheader("📈 項目別インタラクティブグラフ")
     chart_cols = [
@@ -211,77 +202,37 @@ if uploaded_data:
             sum_data = df.groupby(category_col)['取扱高'].sum().reindex(count_data.index)
 
         fig = go.Figure()
-        fig.add_trace(go.Bar(
-            x=count_data.index,
-            y=count_data.values,
-            name="件数",
-            marker_color="skyblue",
-            text=[f"{v}" for v in count_data.values],
-            textposition="outside",
-            offsetgroup=0,
-            yaxis="y"
-        ))
-        fig.add_trace(go.Bar(
-            x=sum_data.index,
-            y=sum_data.values,
-            name="取扱高（円）",
-            marker_color="orange",
-            text=[f"{v/1_000_000:.1f}M" for v in sum_data.values],
-            textposition="outside",
-            offsetgroup=1,
-            yaxis="y2"
-        ))
-        fig.update_layout(
-            title=f"{title}（件数＋取扱高）",
-            xaxis=dict(title=category_col),
-            yaxis=dict(title="件数", side="left"),
-            yaxis2=dict(title="取扱高（円）", overlaying="y", side="right"),
-            barmode="group"
-        )
+        fig.add_trace(go.Bar(x=count_data.index, y=count_data.values, name="件数", marker_color="skyblue"))
+        fig.add_trace(go.Bar(x=sum_data.index, y=sum_data.values, name="取扱高（円）", marker_color="orange", yaxis="y2"))
+        fig.update_layout(title=f"{title}（件数＋取扱高）", barmode="group", yaxis=dict(title="件数"), yaxis2=dict(title="取扱高（円）", overlaying="y", side="right"))
         return fig
 
+    # グラフ生成とExcel貼り付け用リスト
+    figs = []
     for title, col in chart_cols:
         if col in filtered_df.columns and filtered_df[col].dropna().shape[0] > 0:
             fig = create_dual_axis_grouped_chart(filtered_df, col, title)
             st.plotly_chart(fig, use_container_width=True)
+            figs.append((title, fig))
 
-    # クロス集計
-    st.subheader("🔍 クロス集計（件数＋取扱高）")
-    selected_cols = st.multiselect("クロス集計する項目を選択", [c for _, c in chart_cols])
-    if len(selected_cols) >= 2 and all(col in filtered_df.columns for col in selected_cols[:2]):
-        pivot_count = pd.pivot_table(filtered_df, index=selected_cols[0], columns=selected_cols[1], aggfunc='size', fill_value=0)
-        pivot_sum = pd.pivot_table(filtered_df, index=selected_cols[0], columns=selected_cols[1], values='取扱高', aggfunc='sum', fill_value=0)
-        st.write("件数")
-        st.dataframe(pivot_count)
-        st.write("取扱高（円）")
-        st.dataframe(pivot_sum)
+    # Excelに画像貼り付け
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "グラフ一覧"
+    row = 1
+    for title, fig in figs:
+        img_bytes = fig.to_image(format="png")
+        img = Image.open(io.BytesIO(img_bytes))
+        img_path = f"{title}.png"
+        img.save(img_path)
+        xl_img = XLImage(img_path)
+        ws.add_image(xl_img, f"A{row}")
+        row += 20  # 次の画像の位置をずらす
 
-        count_melted = pivot_count.reset_index().melt(id_vars=selected_cols[0], var_name=selected_cols[1], value_name="件数")
-        sum_melted = pivot_sum.reset_index().melt(id_vars=selected_cols[0], var_name=selected_cols[1], value_name="取扱高")
-        fig_cross = go.Figure()
-        fig_cross.add_trace(go.Bar(
-            x=count_melted[selected_cols[0]] + "-" + count_melted[selected_cols[1]],
-            y=count_melted["件数"],
-            name="件数",
-            marker_color="skyblue",
-            offsetgroup=0,
-            yaxis="y"
-        ))
-        fig_cross.add_trace(go.Bar(
-            x=sum_melted[selected_cols[0]] + "-" + sum_melted[selected_cols[1]],
-            y=sum_melted["取扱高"],
-            name="取扱高（円）",
-            marker_color="orange",
-            offsetgroup=1,
-            yaxis="y2"
-        ))
-        fig_cross.update_layout(
-            title="クロス集計（件数＋取扱高）",
-            xaxis=dict(title="組み合わせ"),
-            yaxis=dict(title="件数", side="left"),
-            yaxis2=dict(title="取扱高（円）", overlaying="y", side="right"),
-            barmode="group"
-        )
-        st.plotly_chart(fig_cross, use_container_width=True)
+    excel_bytes = io.BytesIO()
+    wb.save(excel_bytes)
+
+    st.download_button("📥 グラフをExcelでダウンロード", data=excel_bytes.getvalue(), file_name="charts.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 else:
     st.info("Excelファイルをアップロードしてください。")
