@@ -54,6 +54,12 @@ if uploaded_data:
 
     df['取扱高'] = df[['取扱金額_申込当月', '取扱金額_申込翌月末', '取扱金額_申込翌々月末']].sum(axis=1)
 
+    # 承認区分のNULL処理
+    if '承認区分' in df.columns:
+        df['承認区分'] = df['承認区分'].fillna('NULL')
+    else:
+        df['承認区分'] = 'NULL'
+
     # マスタと突合
     merged_df = df.merge(master_long, on="媒体コード", how="left")
 
@@ -62,89 +68,42 @@ if uploaded_data:
     start_date, end_date = st.sidebar.date_input("申込日範囲", [merged_df['申込日'].min(), merged_df['申込日'].max()])
     gender_options = ["ALL", "男性", "女性"]
     selected_genders = st.sidebar.multiselect("性別を選択", gender_options, default=["ALL"])
-    company_options = ["ALL"] + merged_df["会社名"].dropna().unique().tolist()
+
+    company_options = ["ALL"] + (merged_df["会社名"].dropna().unique().tolist() if "会社名" in merged_df.columns else [])
     selected_companies = st.sidebar.multiselect("会社名を選択", company_options, default=["ALL"])
-    category_options = ["ALL"] + merged_df["カテゴリ"].dropna().unique().tolist()
+
+    category_options = ["ALL"] + (merged_df["カテゴリ"].dropna().unique().tolist() if "カテゴリ" in merged_df.columns else [])
     selected_categories = st.sidebar.multiselect("カテゴリを選択", category_options, default=["ALL"])
+
+    approval_options = ["ALL", "承認", "スモール", "NULL"]
+    selected_approval = st.sidebar.multiselect("承認区分を選択", approval_options, default=["ALL"])
 
     # フィルタ処理
     filtered_df = merged_df[(merged_df['申込日'] >= pd.to_datetime(start_date)) & (merged_df['申込日'] <= pd.to_datetime(end_date))]
     if "ALL" not in selected_genders and '性別' in filtered_df.columns:
         filtered_df = filtered_df[filtered_df['性別'].isin(selected_genders)]
-    if "ALL" not in selected_companies:
-        filtered_df = filtered_df[filtered_df['会社名'].isin(selected_companies)]
-    if "ALL" not in selected_categories:
-        filtered_df = filtered_df[filtered_df['カテゴリ'].isin(selected_categories)]
+    if "ALL" not in selected_companies and "会社名" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["会社名"].isin(selected_companies)]
+    if "ALL" not in selected_categories and "カテゴリ" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["カテゴリ"].isin(selected_categories)]
+    if "ALL" not in selected_approval and "承認区分" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["承認区分"].isin(selected_approval)]
 
     st.write(f"件数: {len(filtered_df)}")
-    st.dataframe(filtered_df)
+
+    # テーブル表示（会社名を媒体コードの次に追加）
+    display_cols = []
+    if "媒体コード" in filtered_df.columns:
+        display_cols.append("媒体コード")
+    if "会社名" in filtered_df.columns:
+        display_cols.append("会社名")
+    # 残りの列を追加
+    display_cols += [col for col in filtered_df.columns if col not in display_cols]
+    st.dataframe(filtered_df[display_cols])
 
     # CSVダウンロード
     csv = filtered_df.to_csv(index=False).encode('utf-8-sig')
     st.download_button(label="CSVをダウンロード", data=csv, file_name="filtered_data.csv", mime="text/csv")
-
-    # 帯分類関数
-    def group_age(x):
-        if pd.isna(x): return "不明"
-        if x < 20: return "10代"
-        elif x < 30: return "20代"
-        elif x < 40: return "30代"
-        elif x < 50: return "40代"
-        elif x < 60: return "50代"
-        else: return "60代以上"
-
-    def group_income(x):
-        if pd.isna(x): return "不明"
-        if x < 500: return "0-499"
-        elif x < 1000: return "500-999"
-        else: return "1000以上"
-
-    def group_loan(x):
-        if pd.isna(x): return "不明"
-        if x == 0: return "0"
-        elif x < 10: return "1-9"
-        elif x < 20: return "10-19"
-        elif x < 30: return "20-29"
-        elif x < 40: return "30-39"
-        elif x < 50: return "40-49"
-        elif x < 60: return "50-59"
-        elif x < 70: return "60-69"
-        elif x < 80: return "70-79"
-        elif x < 90: return "80-89"
-        elif x < 100: return "90-99"
-        elif x < 200: return "100-199"
-        elif x < 300: return "200-299"
-        else: return "300以上"
-
-    def group_mortgage(x):
-        if pd.isna(x): return "不明"
-        if x == 0: return "0"
-        elif x < 10: return "1-9"
-        elif x < 20: return "10-19"
-        elif x < 30: return "20-29"
-        elif x < 40: return "30-39"
-        elif x < 50: return "40-49"
-        elif x < 60: return "50-59"
-        elif x < 70: return "60-69"
-        elif x < 80: return "70-79"
-        elif x < 90: return "80-89"
-        elif x < 100: return "90-99"
-        else: return "100以上"
-
-    def group_years(x):
-        if pd.isna(x): return "不明"
-        if x == 0: return "0"
-        elif x <= 3: return "1-3"
-        elif x <= 9: return "4-9"
-        elif x <= 20: return "10-20"
-        else: return "21以上"
-
-    # 帯列追加
-    filtered_df['年代'] = filtered_df['年齢'].apply(group_age)
-    filtered_df['年収帯'] = filtered_df['年収'].apply(group_income)
-    filtered_df['借入希望額帯'] = filtered_df['同借希望額'].apply(group_loan)
-    filtered_df['住宅ローン帯'] = filtered_df['住宅ローン返済月額'].apply(group_mortgage)
-    filtered_df['勤続年数帯'] = filtered_df['勤続年数'].apply(group_years)
 
     # グラフ表示
     st.subheader("📈 項目別インタラクティブグラフ")
