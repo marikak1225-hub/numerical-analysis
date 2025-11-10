@@ -1,7 +1,9 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+from io import BytesIO
 
+# ページ設定
 st.set_page_config(page_title="後方数値データ分析", layout="wide")
 st.title("📊 後方数値データ分析ダッシュボード")
 
@@ -13,28 +15,38 @@ category_orders = {
     "勤続年数帯": ['0', '1-3', '4-9', '10-20', '21以上']
 }
 
-# サイドバー：フィルタ設定（順序を指定）
+# サイドバー：フィルタ設定
 st.sidebar.header("フィルタ設定")
+
+# GitHub上の媒体コードマスタ読み込み
+master_path = "data/媒体コードマスタ.xlsx"  # GitHub上のパスに合わせて変更
+master = pd.read_excel(master_path)
+master.columns = [str(c).strip() for c in master.columns]
+
+# コード列を縦持ちに変換
+code_cols = master.columns[2:]  # C列以降
+master_long = master.melt(id_vars=["会社名カイシャメイ", "カテゴリ"], value_vars=code_cols,
+                          var_name="コード列", value_name="媒体コード").dropna(subset=["媒体コード"])
 
 # ファイルアップロード
 uploaded_file = st.file_uploader("Excelファイルをアップロードしてください", type=["xlsx"])
 
-# 初期値（ファイル未アップロード時の安全対策）
 start_date, end_date = None, None
-media_codes, selected_codes = [], ["ALL"]
 selected_genders = ["ALL"]
+selected_companies = ["ALL"]
+selected_categories = ["ALL"]
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
     df.columns = [str(c).strip().replace('\u3000', '').replace('\xa0', '') for c in df.columns]
 
-    # 性別列整形（例：1_男性 → 男性）
+    # 性別列整形
     if '性別' in df.columns:
         df['性別'] = df['性別'].astype(str).str.extract(r'_(男性|女性)')
 
     # 数値列変換
-    numeric_cols = ['年齢', '年収', '同借希望額', '住宅ローン返済月額', '勤続年数', '他社借入件数',
-                    '取扱金額_申込当月', '取扱金額_申込翌月末', '取扱金額_申込翌々月末']
+    numeric_cols = ['年齢', '年収', '同借希望額', '住宅ローン返済月額', '勤続年数',
+                    '他社借入件数', '取扱金額_申込当月', '取扱金額_申込翌月末', '取扱金額_申込翌々月末']
     for col in numeric_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -44,19 +56,28 @@ if uploaded_file:
 
     df['取扱高'] = df[['取扱金額_申込当月', '取扱金額_申込翌月末', '取扱金額_申込翌々月末']].sum(axis=1)
 
-    # フィルタUI（順序：申込日 → 媒体コード → 性別）
-    start_date, end_date = st.sidebar.date_input("申込日範囲", [df['申込日'].min(), df['申込日'].max()])
-    media_codes = df['媒体コード'].dropna().unique().tolist() if '媒体コード' in df.columns else []
-    selected_codes = st.sidebar.multiselect("媒体コードを選択（ALL選択で全件）", ["ALL"] + media_codes, default=["ALL"])
+    # マスタと突合
+    merged_df = df.merge(master_long, on="媒体コード", how="left")
+
+    # フィルタUI
+    start_date, end_date = st.sidebar.date_input("申込日範囲", [merged_df['申込日'].min(), merged_df['申込日'].max()])
     gender_options = ["ALL", "男性", "女性"]
     selected_genders = st.sidebar.multiselect("性別を選択", gender_options, default=["ALL"])
 
+    company_options = ["ALL"] + merged_df["会社名カイシャメイ"].dropna().unique().tolist()
+    selected_companies = st.sidebar.multiselect("会社名を選択", company_options, default=["ALL"])
+
+    category_options = ["ALL"] + merged_df["カテゴリ"].dropna().unique().tolist()
+    selected_categories = st.sidebar.multiselect("カテゴリを選択", category_options, default=["ALL"])
+
     # フィルタ処理
-    filtered_df = df[(df['申込日'] >= pd.to_datetime(start_date)) & (df['申込日'] <= pd.to_datetime(end_date))]
-    if "ALL" not in selected_codes:
-        filtered_df = filtered_df[filtered_df['媒体コード'].isin(selected_codes)]
+    filtered_df = merged_df[(merged_df['申込日'] >= pd.to_datetime(start_date)) & (merged_df['申込日'] <= pd.to_datetime(end_date))]
     if "ALL" not in selected_genders and '性別' in filtered_df.columns:
         filtered_df = filtered_df[filtered_df['性別'].isin(selected_genders)]
+    if "ALL" not in selected_companies:
+        filtered_df = filtered_df[filtered_df['会社名カイシャメイ'].isin(selected_companies)]
+    if "ALL" not in selected_categories:
+        filtered_df = filtered_df[filtered_df['カテゴリ'].isin(selected_categories)]
 
     st.write(f"件数: {len(filtered_df)}")
     if len(filtered_df) == 0:
@@ -125,7 +146,31 @@ if uploaded_file:
         filtered_df['住宅ローン帯'] = filtered_df['住宅ローン返済月額'].apply(group_mortgage)
         filtered_df['勤続年数帯'] = filtered_df['勤続年数'].apply(group_years)
 
-        # グラフ作成関数
+        # 表示テーブル
+        st.subheader("📋 フィルタ後データ")
+        st.dataframe(filtered_df)
+
+        # エクスポート機能
+        csv = filtered_df.to_csv(index=False).encode('utf-8-sig')
+        st.download_button(label="CSVをダウンロード", data=csv, file_name="filtered_data.csv", mime="text/csv")
+
+        # グラフ表示
+        st.subheader("📈 項目別インタラクティブグラフ")
+        chart_cols = [
+            ("性別", "性別"),
+            ("年代別", "年代"),
+            ("年収帯", "年収帯"),
+            ("都道府県", "都道府県"),
+            ("利用目的", "利用目的"),
+            ("借入希望額帯", "借入希望額帯"),
+            ("家族構成", "家族構成"),
+            ("子供数", "子供数"),
+            ("住宅ローン帯", "住宅ローン帯"),
+            ("勤務状況", "勤務状況"),
+            ("勤続年数帯", "勤続年数帯"),
+            ("他社借入件数", "他社借入件数")
+        ]
+
         def create_dual_axis_grouped_chart(df, category_col, title):
             if category_col in category_orders:
                 ordered_categories = category_orders[category_col]
@@ -165,22 +210,6 @@ if uploaded_file:
             )
             return fig
 
-        # グラフ表示
-        st.subheader("📈 項目別インタラクティブグラフ")
-        chart_cols = [
-            ("性別", "性別"),
-            ("年代別", "年代"),
-            ("年収帯", "年収帯"),
-            ("都道府県", "都道府県"),
-            ("利用目的", "利用目的"),
-            ("借入希望額帯", "借入希望額帯"),
-            ("家族構成", "家族構成"),
-            ("子供数", "子供数"),
-            ("住宅ローン帯", "住宅ローン帯"),
-            ("勤務状況", "勤務状況"),
-            ("勤続年数帯", "勤続年数帯"),
-            ("他社借入件数", "他社借入件数")
-        ]
         for title, col in chart_cols:
             if col in filtered_df.columns and filtered_df[col].dropna().shape[0] > 0:
                 fig = create_dual_axis_grouped_chart(filtered_df, col, title)
