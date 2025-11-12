@@ -21,18 +21,11 @@ uploaded_data = st.sidebar.file_uploader("後方数値データをアップロ�
 # マスタファイル読み込み（GitHub固定）
 master_path = "媒体コードマスタ.xlsx"
 master = pd.read_excel(master_path)
-
-# 列名正規化
 master.columns = [str(c).strip().replace('\u3000', '').replace('\xa0', '') for c in master.columns]
-
-# 「会社名」を「媒体名」に変更
 master.rename(columns={"会社名": "媒体名"}, inplace=True)
 
-# id_varsとコード列を動的に取得
 id_vars = [col for col in master.columns if col in ["媒体名", "カテゴリ"]]
 code_cols = [col for col in master.columns if col not in id_vars]
-
-# 縦持ち変換
 master_long = master.melt(id_vars=id_vars, value_vars=code_cols,
                           var_name="コード列", value_name="媒体コード").dropna(subset=["媒体コード"])
 
@@ -67,41 +60,52 @@ if uploaded_data:
     # マスタと突合
     merged_df = df.merge(master_long, on="媒体コード", how="left")
 
-    # フィルタUI
+    # -------------------------
+    # ✅ フィルタUI（順序変更＋優先度反映）
+    # -------------------------
     st.sidebar.header("フィルタ設定")
-    start_date, end_date = st.sidebar.date_input("申込日範囲", [merged_df['申込日'].min(), merged_df['申込日'].max()])
-    gender_options = ["ALL", "男性", "女性"]
-    selected_genders = st.sidebar.multiselect("性別を選択", gender_options, default=["ALL"])
 
-    company_options = ["ALL"] + (merged_df["媒体名"].dropna().unique().tolist() if "媒体名" in merged_df.columns else [])
-    selected_companies = st.sidebar.multiselect("媒体名を選択", company_options, default=["ALL"])
+    # 1. 申込日範囲
+    start_date, end_date = st.sidebar.date_input(
+        "申込日範囲",
+        [merged_df['申込日'].min(), merged_df['申込日'].max()]
+    )
+    filtered_df = merged_df[(merged_df['申込日'] >= pd.to_datetime(start_date)) &
+                             (merged_df['申込日'] <= pd.to_datetime(end_date))]
 
-    category_options = ["ALL"] + (merged_df["カテゴリ"].dropna().unique().tolist() if "カテゴリ" in merged_df.columns else [])
+    # 2. カテゴリ
+    category_options = ["ALL"] + sorted(filtered_df["カテゴリ"].dropna().unique().tolist())
     selected_categories = st.sidebar.multiselect("カテゴリを選択", category_options, default=["ALL"])
-
-    approval_options = ["ALL", "承認", "スモール", "NULL"]
-    selected_approval = st.sidebar.multiselect("承認区分を選択", approval_options, default=["ALL"])
-
-    # フィルタ処理
-    filtered_df = merged_df[(merged_df['申込日'] >= pd.to_datetime(start_date)) & (merged_df['申込日'] <= pd.to_datetime(end_date))]
-    if "ALL" not in selected_genders and '性別' in filtered_df.columns:
-        filtered_df = filtered_df[filtered_df['性別'].isin(selected_genders)]
-    if "ALL" not in selected_companies and "媒体名" in filtered_df.columns:
-        filtered_df = filtered_df[filtered_df["媒体名"].isin(selected_companies)]
-    if "ALL" not in selected_categories and "カテゴリ" in filtered_df.columns:
+    if "ALL" not in selected_categories:
         filtered_df = filtered_df[filtered_df["カテゴリ"].isin(selected_categories)]
-    if "ALL" not in selected_approval and "承認区分" in filtered_df.columns:
+
+    # 3. 媒体名（カテゴリで絞った結果に基づく）
+    company_options = ["ALL"] + sorted(filtered_df["媒体名"].dropna().unique().tolist())
+    selected_companies = st.sidebar.multiselect("媒体名を選択", company_options, default=["ALL"])
+    if "ALL" not in selected_companies:
+        filtered_df = filtered_df[filtered_df["媒体名"].isin(selected_companies)]
+
+    # 4. 承認区分（媒体名で絞った結果に基づく）
+    approval_options = ["ALL"] + sorted(filtered_df["承認区分"].dropna().unique().tolist())
+    selected_approval = st.sidebar.multiselect("承認区分を選択", approval_options, default=["ALL"])
+    if "ALL" not in selected_approval:
         filtered_df = filtered_df[filtered_df["承認区分"].isin(selected_approval)]
+
+    # 5. 性別（承認区分で絞った結果に基づく）
+    gender_options = ["ALL"] + sorted(filtered_df["性別"].dropna().unique().tolist())
+    selected_genders = st.sidebar.multiselect("性別を選択", gender_options, default=["ALL"])
+    if "ALL" not in selected_genders:
+        filtered_df = filtered_df[filtered_df["性別"].isin(selected_genders)]
 
     st.write(f"件数: {len(filtered_df)}")
 
-    # 年齢を10刻みでグループ化
+    # -------------------------
+    # ✅ データ整形（年齢・年収帯など）
+    # -------------------------
     def group_age_10(x):
         if pd.isna(x): return "不明"
-        try:
-            x = int(x)
-        except:
-            return "不明"
+        try: x = int(x)
+        except: return "不明"
         if x < 10: return "0-9"
         elif x < 20: return "10-19"
         elif x < 30: return "20-29"
@@ -115,7 +119,6 @@ if uploaded_data:
 
     filtered_df['年齢'] = filtered_df['年齢'].apply(group_age_10)
 
-    # 年収帯・借入希望額帯・住宅ローン帯・勤続年数帯も分類
     def group_income(x):
         if pd.isna(x): return "不明"
         if x < 500: return "0-499"
@@ -167,7 +170,9 @@ if uploaded_data:
     filtered_df['住宅ローン帯'] = filtered_df['住宅ローン返済月額'].apply(group_mortgage)
     filtered_df['勤続年数帯'] = filtered_df['勤続年数'].apply(group_years)
 
-    # テーブル表示（媒体名を媒体コードの次に追加）
+    # -------------------------
+    # ✅ テーブル表示＋CSVダウンロード
+    # -------------------------
     display_cols = []
     if "媒体コード" in filtered_df.columns:
         display_cols.append("媒体コード")
@@ -176,11 +181,12 @@ if uploaded_data:
     display_cols += [col for col in filtered_df.columns if col not in display_cols]
     st.dataframe(filtered_df[display_cols])
 
-    # CSVダウンロード
     csv = filtered_df.to_csv(index=False).encode('utf-8-sig')
     st.download_button(label="CSVをダウンロード", data=csv, file_name="filtered_data.csv", mime="text/csv")
 
-    # グラフ表示
+    # -------------------------
+    # ✅ グラフ表示
+    # -------------------------
     st.subheader("📈 項目別インタラクティブグラフ")
     chart_cols = [
         ("性別", "性別"),
@@ -245,7 +251,9 @@ if uploaded_data:
             fig = create_dual_axis_grouped_chart(filtered_df, col, title)
             st.plotly_chart(fig, use_container_width=True)
 
-    # クロス集計
+    # -------------------------
+    # ✅ クロス集計
+    # -------------------------
     st.subheader("🔍 クロス集計（件数＋取扱高）")
     selected_cols = st.multiselect("クロス集計する項目を選択", [c for _, c in chart_cols])
     if len(selected_cols) >= 2 and all(col in filtered_df.columns for col in selected_cols[:2]):
