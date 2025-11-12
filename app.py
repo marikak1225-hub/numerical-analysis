@@ -79,19 +79,19 @@ if uploaded_data:
     if "ALL" not in selected_categories:
         filtered_df = filtered_df[filtered_df["カテゴリ"].isin(selected_categories)]
 
-    # 3. 媒体名（カテゴリで絞った結果に基づく）
+    # 3. 媒体名
     company_options = ["ALL"] + sorted(filtered_df["媒体名"].dropna().unique().tolist())
     selected_companies = st.sidebar.multiselect("媒体名を選択", company_options, default=["ALL"])
     if "ALL" not in selected_companies:
         filtered_df = filtered_df[filtered_df["媒体名"].isin(selected_companies)]
 
-    # 4. 承認区分（媒体名で絞った結果に基づく）
+    # 4. 承認区分
     approval_options = ["ALL"] + sorted(filtered_df["承認区分"].dropna().unique().tolist())
     selected_approval = st.sidebar.multiselect("承認区分を選択", approval_options, default=["ALL"])
     if "ALL" not in selected_approval:
         filtered_df = filtered_df[filtered_df["承認区分"].isin(selected_approval)]
 
-    # 5. 性別（承認区分で絞った結果に基づく）
+    # 5. 性別
     gender_options = ["ALL"] + sorted(filtered_df["性別"].dropna().unique().tolist())
     selected_genders = st.sidebar.multiselect("性別を選択", gender_options, default=["ALL"])
     if "ALL" not in selected_genders:
@@ -185,7 +185,28 @@ if uploaded_data:
     st.download_button(label="CSVをダウンロード", data=csv, file_name="filtered_data.csv", mime="text/csv")
 
     # -------------------------
-    # ✅ グラフ表示
+    # ✅ 承認率計算＋表示＋CSV
+    # -------------------------
+    if "媒体名" in filtered_df.columns:
+        approval_summary = (
+            filtered_df.groupby("媒体名")
+            .apply(lambda x: pd.Series({
+                "件数": len(x),
+                "承認件数": (x["承認区分"] == "承認").sum(),
+                "承認率(%)": round((x["承認区分"] == "承認").sum() / len(x) * 100, 2)
+            }))
+            .reset_index()
+            .sort_values(by="承認率(%)", ascending=False)
+        )
+
+        st.subheader("📌 媒体別 承認率一覧（降順）")
+        st.dataframe(approval_summary)
+
+        csv_summary = approval_summary.to_csv(index=False).encode('utf-8-sig')
+        st.download_button(label="承認率一覧CSVをダウンロード", data=csv_summary, file_name="approval_summary.csv", mime="text/csv")
+
+    # -------------------------
+    # ✅ グラフ表示（件数＋取扱高＋承認率）
     # -------------------------
     st.subheader("📈 項目別インタラクティブグラフ")
     chart_cols = [
@@ -250,6 +271,25 @@ if uploaded_data:
         if col in filtered_df.columns and filtered_df[col].dropna().shape[0] > 0:
             fig = create_dual_axis_grouped_chart(filtered_df, col, title)
             st.plotly_chart(fig, use_container_width=True)
+
+    # ✅ 承認率折れ線グラフ（媒体別）
+    if not approval_summary.empty:
+        fig_approval = go.Figure()
+        fig_approval.add_trace(go.Scatter(
+            x=approval_summary["媒体名"],
+            y=approval_summary["承認率(%)"],
+            mode="lines+markers",
+            name="承認率(%)",
+            line=dict(color="green", width=3),
+            marker=dict(size=8)
+        ))
+        fig_approval.update_layout(
+            title="媒体別承認率（降順）",
+            xaxis=dict(title="媒体名"),
+            yaxis=dict(title="承認率(%)"),
+            hovermode="x unified"
+        )
+        st.plotly_chart(fig_approval, use_container_width=True)
 
     # -------------------------
     # ✅ クロス集計
