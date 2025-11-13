@@ -166,21 +166,7 @@ if uploaded_data:
     filtered_df['勤続年数帯'] = filtered_df['勤続年数'].apply(group_years)
 
     # -------------------------
-    # ✅ テーブル表示＋CSVダウンロード
-    # -------------------------
-    display_cols = []
-    if "媒体コード" in filtered_df.columns:
-        display_cols.append("媒体コード")
-    if "媒体名" in filtered_df.columns:
-        display_cols.append("媒体名")
-    display_cols += [col for col in filtered_df.columns if col not in display_cols]
-    st.dataframe(filtered_df[display_cols])
-
-    csv = filtered_df.to_csv(index=False).encode('utf-8-sig')
-    st.download_button(label="CSVをダウンロード", data=csv, file_name="filtered_data.csv", mime="text/csv")
-
-    # -------------------------
-    # ✅ 承認率計算＋表示＋CSV
+    # ✅ 承認率計算＋表示
     # -------------------------
     approval_summary = pd.DataFrame()
     if "媒体名" in filtered_df.columns:
@@ -197,9 +183,6 @@ if uploaded_data:
 
         st.subheader("📌 媒体別 承認率一覧（降順）")
         st.dataframe(approval_summary)
-
-        csv_summary = approval_summary.to_csv(index=False).encode('utf-8-sig')
-        st.download_button(label="承認率一覧CSVをダウンロード", data=csv_summary, file_name="approval_summary.csv", mime="text/csv")
 
     # -------------------------
     # ✅ グラフ表示（件数＋取扱高＋承認率）
@@ -263,7 +246,7 @@ if uploaded_data:
             yaxis="y2"
         ))
 
-        # 承認率（折れ線）
+        # 承認率（折れ線）→右軸に重ねる
         fig.add_trace(go.Scatter(
             x=approval_rate.index,
             y=approval_rate.values,
@@ -271,15 +254,14 @@ if uploaded_data:
             mode="lines+markers",
             line=dict(color="green", width=3),
             marker=dict(size=8),
-            yaxis="y3"
+            yaxis="y2"
         ))
 
         fig.update_layout(
             title=f"{title}（件数＋取扱高＋承認率）",
             xaxis=dict(title=category_col),
             yaxis=dict(title="件数", side="left"),
-            yaxis2=dict(title="取扱高（円）", overlaying="y", side="right"),
-            yaxis3=dict(title="承認率(%)", overlaying="y", side="right", position=1.05),
+            yaxis2=dict(title="取扱高（円）＋承認率(%)", overlaying="y", side="right"),
             barmode="group"
         )
         return fig
@@ -289,47 +271,5 @@ if uploaded_data:
             fig = create_combined_chart(filtered_df, col, title)
             st.plotly_chart(fig, use_container_width=True)
 
-    # -------------------------
-    # ✅ クロス集計
-    # -------------------------
-    st.subheader("🔍 クロス集計（件数＋取扱高）")
-    selected_cols = st.multiselect("クロス集計する項目を選択", [c for _, c in chart_cols])
-    if len(selected_cols) >= 2 and all(col in filtered_df.columns for col in selected_cols[:2]):
-        pivot_count = pd.pivot_table(filtered_df, index=selected_cols[0], columns=selected_cols[1], aggfunc='size', fill_value=0)
-        pivot_sum = pd.pivot_table(filtered_df, index=selected_cols[0], columns=selected_cols[1], values='取扱高', aggfunc='sum', fill_value=0)
-        st.write("件数")
-        st.dataframe(pivot_count)
-        st.write("取扱高（円）")
-        st.dataframe(pivot_sum)
-
-        count_melted = pivot_count.reset_index().melt(id_vars=selected_cols[0], var_name=selected_cols[1], value_name="件数")
-        sum_melted = pivot_sum.reset_index().melt(id_vars=selected_cols[0], var_name=selected_cols[1], value_name="取扱高")
-        fig_cross = go.Figure()
-        fig_cross.add_trace(go.Bar(
-            x=count_melted[selected_cols[0]] + "-" + count_melted[selected_cols[1]],
-            y=count_melted["件数"],
-            name="件数",
-            marker_color="skyblue",
-            offsetgroup=0,
-            yaxis="y"
-        ))
-        fig_cross.add_trace(go.Bar(
-            x=sum_melted[selected_cols[0]] + "-" + sum_melted[selected_cols[1]],
-            y=sum_melted["取扱高"],
-            name="取扱高（円）",
-            marker_color="orange",
-            offsetgroup=1,
-            yaxis="y2"
-        ))
-        fig_cross.update_layout(
-            title="クロス集計（件数＋取扱高）",
-            xaxis=dict(title="組み合わせ"),
-            yaxis=dict(title="件数", side="left"),
-            yaxis2=dict(title="取扱高（円）", overlaying="y", side="right"),
-            barmode="group"
-        )
-        st.plotly_chart(fig_cross, use_container_width=True)
-
 else:
     st.info("Excelファイルをアップロードしてください。")
-
