@@ -178,7 +178,7 @@ if uploaded_data:
     st.dataframe(filtered_df[display_cols])
 
     csv = filtered_df.to_csv(index=False).encode('utf-8-sig')
-    st.download_button(label="CSVをダウンロード", data=csv, file_name="filtered_data.csv", mime="text/csv")
+    st.download_button(label="フィルタ後データCSVをダウンロード", data=csv, file_name="filtered_data.csv", mime="text/csv")
 
     # -------------------------
     # ✅ 承認率一覧＋CSVエクスポート
