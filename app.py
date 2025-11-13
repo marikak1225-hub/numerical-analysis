@@ -166,7 +166,7 @@ if uploaded_data:
     filtered_df['勤続年数帯'] = filtered_df['勤続年数'].apply(group_years)
 
     # -------------------------
-    # ✅ テーブル表示（元に戻す）＋CSVダウンロード
+    # ✅ フィルタ後データテーブル＋CSV
     # -------------------------
     st.subheader("📋 フィルタ後データ一覧")
     display_cols = []
@@ -181,7 +181,7 @@ if uploaded_data:
     st.download_button(label="CSVをダウンロード", data=csv, file_name="filtered_data.csv", mime="text/csv")
 
     # -------------------------
-    # ✅ 承認率計算＋表示
+    # ✅ 承認率一覧＋CSVエクスポート
     # -------------------------
     approval_summary = pd.DataFrame()
     if "媒体名" in filtered_df.columns:
@@ -198,6 +198,10 @@ if uploaded_data:
 
         st.subheader("📌 媒体別 承認率一覧（降順）")
         st.dataframe(approval_summary)
+
+        # ✅ CSVエクスポート追加
+        csv_approval = approval_summary.to_csv(index=False).encode('utf-8-sig')
+        st.download_button(label="承認率一覧CSVをダウンロード", data=csv_approval, file_name="approval_summary.csv", mime="text/csv")
 
     # -------------------------
     # ✅ グラフ表示（件数＋取扱高のみ）
