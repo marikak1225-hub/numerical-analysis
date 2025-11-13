@@ -166,6 +166,21 @@ if uploaded_data:
     filtered_df['勤続年数帯'] = filtered_df['勤続年数'].apply(group_years)
 
     # -------------------------
+    # ✅ テーブル表示（元に戻す）＋CSVダウンロード
+    # -------------------------
+    st.subheader("📋 フィルタ後データ一覧")
+    display_cols = []
+    if "媒体コード" in filtered_df.columns:
+        display_cols.append("媒体コード")
+    if "媒体名" in filtered_df.columns:
+        display_cols.append("媒体名")
+    display_cols += [col for col in filtered_df.columns if col not in display_cols]
+    st.dataframe(filtered_df[display_cols])
+
+    csv = filtered_df.to_csv(index=False).encode('utf-8-sig')
+    st.download_button(label="CSVをダウンロード", data=csv, file_name="filtered_data.csv", mime="text/csv")
+
+    # -------------------------
     # ✅ 承認率計算＋表示
     # -------------------------
     approval_summary = pd.DataFrame()
