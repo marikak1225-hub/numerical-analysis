@@ -65,7 +65,6 @@ if uploaded_data:
     # -------------------------
     st.sidebar.header("フィルタ設定")
 
-    # 1. 申込日範囲
     start_date, end_date = st.sidebar.date_input(
         "申込日範囲",
         [merged_df['申込日'].min(), merged_df['申込日'].max()]
@@ -73,25 +72,21 @@ if uploaded_data:
     filtered_df = merged_df[(merged_df['申込日'] >= pd.to_datetime(start_date)) &
                              (merged_df['申込日'] <= pd.to_datetime(end_date))]
 
-    # 2. カテゴリ
     category_options = ["ALL"] + sorted(filtered_df["カテゴリ"].dropna().unique().tolist())
     selected_categories = st.sidebar.multiselect("カテゴリを選択", category_options, default=["ALL"])
     if "ALL" not in selected_categories:
         filtered_df = filtered_df[filtered_df["カテゴリ"].isin(selected_categories)]
 
-    # 3. 媒体名
     company_options = ["ALL"] + sorted(filtered_df["媒体名"].dropna().unique().tolist())
     selected_companies = st.sidebar.multiselect("媒体名を選択", company_options, default=["ALL"])
     if "ALL" not in selected_companies:
         filtered_df = filtered_df[filtered_df["媒体名"].isin(selected_companies)]
 
-    # 4. 承認区分
     approval_options = ["ALL"] + sorted(filtered_df["承認区分"].dropna().unique().tolist())
     selected_approval = st.sidebar.multiselect("承認区分を選択", approval_options, default=["ALL"])
     if "ALL" not in selected_approval:
         filtered_df = filtered_df[filtered_df["承認区分"].isin(selected_approval)]
 
-    # 5. 性別
     gender_options = ["ALL"] + sorted(filtered_df["性別"].dropna().unique().tolist())
     selected_genders = st.sidebar.multiselect("性別を選択", gender_options, default=["ALL"])
     if "ALL" not in selected_genders:
@@ -187,6 +182,7 @@ if uploaded_data:
     # -------------------------
     # ✅ 承認率計算＋表示＋CSV
     # -------------------------
+    approval_summary = pd.DataFrame()
     if "媒体名" in filtered_df.columns:
         approval_summary = (
             filtered_df.groupby("媒体名")
@@ -226,9 +222,11 @@ if uploaded_data:
         ("承認区分", "承認区分")
     ]
 
-    def create_dual_axis_grouped_chart(df, category_col, title):
+    def create_combined_chart(df, category_col, title):
         if category_col not in df.columns or df[category_col].dropna().shape[0] == 0:
             return go.Figure()
+
+        # 件数・取扱高の集計
         if category_col in category_orders:
             ordered_categories = category_orders[category_col]
             count_data = df[category_col].value_counts().reindex(ordered_categories).fillna(0)
@@ -237,59 +235,59 @@ if uploaded_data:
             count_data = df[category_col].value_counts().sort_index()
             sum_data = df.groupby(category_col)['取扱高'].sum().reindex(count_data.index)
 
+        # 承認率の計算
+        approval_rate = df.groupby(category_col).apply(
+            lambda x: (x["承認区分"] == "承認").sum() / len(x) * 100
+        ).reindex(count_data.index).fillna(0)
+
+        # グラフ作成
         fig = go.Figure()
+
+        # 件数（棒）
         fig.add_trace(go.Bar(
             x=count_data.index,
             y=count_data.values,
             name="件数",
             marker_color="skyblue",
-            text=[f"{v}" for v in count_data.values],
-            textposition="outside",
             offsetgroup=0,
             yaxis="y"
         ))
+
+        # 取扱高（棒）
         fig.add_trace(go.Bar(
             x=sum_data.index,
             y=sum_data.values,
             name="取扱高（円）",
             marker_color="orange",
-            text=[f"{v/1_000_000:.1f}M" for v in sum_data.values],
-            textposition="outside",
             offsetgroup=1,
             yaxis="y2"
         ))
+
+        # 承認率（折れ線）
+        fig.add_trace(go.Scatter(
+            x=approval_rate.index,
+            y=approval_rate.values,
+            name="承認率(%)",
+            mode="lines+markers",
+            line=dict(color="green", width=3),
+            marker=dict(size=8),
+            yaxis="y3"
+        ))
+
         fig.update_layout(
-            title=f"{title}（件数＋取扱高）",
+            title=f"{title}（件数＋取扱高＋承認率）",
             xaxis=dict(title=category_col),
             yaxis=dict(title="件数", side="left"),
             yaxis2=dict(title="取扱高（円）", overlaying="y", side="right"),
+            yaxis3=dict(title="承認率(%)", overlaying="y", side="right", position=1.05),
             barmode="group"
         )
         return fig
 
     for title, col in chart_cols:
         if col in filtered_df.columns and filtered_df[col].dropna().shape[0] > 0:
-            fig = create_dual_axis_grouped_chart(filtered_df, col, title)
+            fig = create_combined_chart(filtered_df, col, title)
             st.plotly_chart(fig, use_container_width=True)
-
-    # ✅ 承認率折れ線グラフ（媒体別）
-    if not approval_summary.empty:
-        fig_approval = go.Figure()
-        fig_approval.add_trace(go.Scatter(
-            x=approval_summary["媒体名"],
-            y=approval_summary["承認率(%)"],
-            mode="lines+markers",
-            name="承認率(%)",
-            line=dict(color="green", width=3),
-            marker=dict(size=8)
-        ))
-        fig_approval.update_layout(
-            title="媒体別承認率（降順）",
-            xaxis=dict(title="媒体名"),
-            yaxis=dict(title="承認率(%)"),
-            hovermode="x unified"
-        )
-        st.plotly_chart(fig_approval, use_container_width=True)
 
     # -------------------------
     # ✅ クロス集計
@@ -332,4 +330,3 @@ if uploaded_data:
         )
         st.plotly_chart(fig_cross, use_container_width=True)
 else:
-    st.info("Excelファイルをアップロードしてください。")
