@@ -329,4 +329,7 @@ if uploaded_data:
             barmode="group"
         )
         st.plotly_chart(fig_cross, use_container_width=True)
+
 else:
+    st.info("Excelファイルをアップロードしてください。")
+
