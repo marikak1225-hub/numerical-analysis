@@ -185,7 +185,7 @@ if uploaded_data:
         st.dataframe(approval_summary)
 
     # -------------------------
-    # ✅ グラフ表示（件数＋取扱高＋承認率）
+    # ✅ グラフ表示（件数＋取扱高のみ）
     # -------------------------
     st.subheader("📈 項目別インタラクティブグラフ")
     chart_cols = [
@@ -205,11 +205,10 @@ if uploaded_data:
         ("承認区分", "承認区分")
     ]
 
-    def create_combined_chart(df, category_col, title):
+    def create_dual_axis_grouped_chart(df, category_col, title):
         if category_col not in df.columns or df[category_col].dropna().shape[0] == 0:
             return go.Figure()
 
-        # 件数・取扱高の集計
         if category_col in category_orders:
             ordered_categories = category_orders[category_col]
             count_data = df[category_col].value_counts().reindex(ordered_categories).fillna(0)
@@ -218,15 +217,7 @@ if uploaded_data:
             count_data = df[category_col].value_counts().sort_index()
             sum_data = df.groupby(category_col)['取扱高'].sum().reindex(count_data.index)
 
-        # 承認率の計算
-        approval_rate = df.groupby(category_col).apply(
-            lambda x: (x["承認区分"] == "承認").sum() / len(x) * 100
-        ).reindex(count_data.index).fillna(0)
-
-        # グラフ作成
         fig = go.Figure()
-
-        # 件数（棒）
         fig.add_trace(go.Bar(
             x=count_data.index,
             y=count_data.values,
@@ -235,8 +226,6 @@ if uploaded_data:
             offsetgroup=0,
             yaxis="y"
         ))
-
-        # 取扱高（棒）
         fig.add_trace(go.Bar(
             x=sum_data.index,
             y=sum_data.values,
@@ -245,30 +234,18 @@ if uploaded_data:
             offsetgroup=1,
             yaxis="y2"
         ))
-
-        # 承認率（折れ線）→右軸に重ねる
-        fig.add_trace(go.Scatter(
-            x=approval_rate.index,
-            y=approval_rate.values,
-            name="承認率(%)",
-            mode="lines+markers",
-            line=dict(color="green", width=3),
-            marker=dict(size=8),
-            yaxis="y2"
-        ))
-
         fig.update_layout(
-            title=f"{title}（件数＋取扱高＋承認率）",
+            title=f"{title}（件数＋取扱高）",
             xaxis=dict(title=category_col),
             yaxis=dict(title="件数", side="left"),
-            yaxis2=dict(title="取扱高（円）＋承認率(%)", overlaying="y", side="right"),
+            yaxis2=dict(title="取扱高（円）", overlaying="y", side="right"),
             barmode="group"
         )
         return fig
 
     for title, col in chart_cols:
         if col in filtered_df.columns and filtered_df[col].dropna().shape[0] > 0:
-            fig = create_combined_chart(filtered_df, col, title)
+            fig = create_dual_axis_grouped_chart(filtered_df, col, title)
             st.plotly_chart(fig, use_container_width=True)
 
 else:
