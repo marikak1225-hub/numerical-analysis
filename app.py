@@ -20,11 +20,9 @@ category_orders = {
     "勤続年数帯": ['0', '1-3', '4-9', '10-20', '21以上']
 }
 
-# ----------------------------------------------------
 # サイドバー：ファイルアップロード
-# ----------------------------------------------------
 st.sidebar.header("ファイルアップロード")
-uploaded_data = st.sidebar.file_uploader("後方数値データをアップロード（.xlsx）", type=["xlsx"])
+uploaded_data = st.sidebar.file_uploader("後方数値データをアップロード", type=["xlsx"])
 
 # マスタファイル読み込み（GitHub固定）
 master_path = "媒体コードマスタ.xlsx"
@@ -37,11 +35,7 @@ code_cols = [col for col in master.columns if col not in id_vars]
 master_long = master.melt(id_vars=id_vars, value_vars=code_cols,
                           var_name="コード列", value_name="媒体コード").dropna(subset=["媒体コード"])
 
-if uploaded_data:
-    
-# ----------------------------------------------------
-# メイン処理（アップロード後）
-# ----------------------------------------------------
+# 後方数値データ読み込み
 if uploaded_data is not None:
     # 後方数値データ読み込み
     df = pd.read_excel(uploaded_data)
@@ -454,4 +448,5 @@ if uploaded_data is not None:
 else:
     # アップロードが未実施の案内
     st.info("Excelファイル（後方数値データ）をアップロードしてください。")
+
 
