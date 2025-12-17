@@ -26,44 +26,19 @@ category_orders = {
 st.sidebar.header("ファイルアップロード")
 uploaded_data = st.sidebar.file_uploader("後方数値データをアップロード（.xlsx）", type=["xlsx"])
 
-# マスタファイル（任意アップロード）＋ローカル fallback
-st.sidebar.header("マスタ（媒体コードマスタ）")
-uploaded_master = st.sidebar.file_uploader("媒体コードマスタをアップロード（任意・.xlsx）", type=["xlsx"])
-master_long = pd.DataFrame(columns=["媒体名", "カテゴリ", "コード列", "媒体コード"])
+# マスタファイル読み込み（GitHub固定）
+master_path = "媒体コードマスタ.xlsx"
+master = pd.read_excel(master_path)
+master.columns = [str(c).strip().replace('\u3000', '').replace('\xa0', '') for c in master.columns]
+master.rename(columns={"会社名": "媒体名"}, inplace=True)
 
-def load_master_df():
-    if uploaded_master is not None:
-        mdf = pd.read_excel(uploaded_master)
-    else:
-        # ローカルファイルがある環境向けのフォールバック
-        try:
-            mdf = pd.read_excel("媒体コードマスタ.xlsx")
-        except Exception:
-            return None
-    # 列名整形
-    mdf.columns = [str(c).strip().replace('\u3000', '').replace('\xa0', '') for c in mdf.columns]
-    # 別名対応
-    if "会社名" in mdf.columns and "媒体名" not in mdf.columns:
-        mdf.rename(columns={"会社名": "媒体名"}, inplace=True)
+id_vars = [col for col in master.columns if col in ["媒体名", "カテゴリ"]]
+code_cols = [col for col in master.columns if col not in id_vars]
+master_long = master.melt(id_vars=id_vars, value_vars=code_cols,
+                          var_name="コード列", value_name="媒体コード").dropna(subset=["媒体コード"])
 
-    id_vars = [col for col in mdf.columns if col in ["媒体名", "カテゴリ"]]
-    code_cols = [col for col in mdf.columns if col not in id_vars]
-    # コード列を縦持ち化
-    melted = mdf.melt(
-        id_vars=id_vars,
-        value_vars=code_cols,
-        var_name="コード列",
-        value_name="媒体コード"
-    )
-    melted = melted.dropna(subset=["媒体コード"])
-    return melted
-
-loaded_master_long = load_master_df()
-if loaded_master_long is not None and not loaded_master_long.empty:
-    master_long = loaded_master_long
-else:
-    st.sidebar.warning("媒体コードマスタが未指定または読み込めませんでした。媒体名・カテゴリは空になる場合があります。")
-
+if uploaded_data:
+    
 # ----------------------------------------------------
 # メイン処理（アップロード後）
 # ----------------------------------------------------
@@ -479,3 +454,4 @@ if uploaded_data is not None:
 else:
     # アップロードが未実施の案内
     st.info("Excelファイル（後方数値データ）をアップロードしてください。")
+
