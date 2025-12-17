@@ -267,7 +267,6 @@ if uploaded_data:
             fig = create_dual_axis_grouped_chart(filtered_df, col, title)
             st.plotly_chart(fig, use_container_width=True)
 
-else:
 #  クロス集計（ピボット）
 st.subheader("🧮 クロス集計（ピボット）")
 
@@ -385,4 +384,7 @@ else:
             st.write("選択 Row/Column:", row_dim, col_dim)
         st.error("クロス集計でエラーが発生しました。")
 
+else:
+    
     st.info("Excelファイルをアップロードしてください。")
+
