@@ -266,6 +266,7 @@ if uploaded_data:
         if col in filtered_df.columns and filtered_df[col].dropna().shape[0] > 0:
             fig = create_dual_axis_grouped_chart(filtered_df, col, title)
             st.plotly_chart(fig, use_container_width=True)
+else:
 
 #  クロス集計（ピボット）
 st.subheader("🧮 クロス集計（ピボット）")
@@ -383,8 +384,9 @@ else:
             st.write("重複列名（出現回数）:", dup_counts[dup_counts > 1] if (dup_counts > 1).any() else "なし")
             st.write("選択 Row/Column:", row_dim, col_dim)
         st.error("クロス集計でエラーが発生しました。")
-
-else:
     
-    st.info("Excelファイルをアップロードしてください。")
+  # アップロードが未実施の案内
+if uploaded_data is None:
+    st.info("Excelファイル（後方数値データ）をアップロードしてください。")
+
 
