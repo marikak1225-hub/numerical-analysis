@@ -268,4 +268,121 @@ if uploaded_data:
             st.plotly_chart(fig, use_container_width=True)
 
 else:
+#  クロス集計（ピボット）
+st.subheader("🧮 クロス集計（ピボット）")
+
+# ✅ 前処理：列名の重複除去・MultiIndexのフラット化
+df_pivot_base = filtered_df.copy()
+df_pivot_base = df_pivot_base.loc[:, ~pd.Index(df_pivot_base.columns).duplicated()]
+df_pivot_base.columns = [
+    "_".join(map(str, c)) if isinstance(c, tuple) else str(c)
+    for c in df_pivot_base.columns
+]
+
+# ✅ 取扱高が無い場合でも動くように補完
+if "取扱高" not in df_pivot_base.columns:
+    df_pivot_base["取扱高"] = 0
+
+# ✅ リスト/タプルが紛れているセルを 1次元化し、カテゴリを文字列化
+def to_1d_str(s: pd.Series) -> pd.Series:
+    return s.apply(lambda v: v[0] if isinstance(v, (list, tuple)) else v).astype(str)
+
+pivot_candidates = [
+    "性別", "年齢", "年収帯", "都道府県", "利用目的", "借入希望額帯",
+    "家族構成", "子供数", "住宅ローン帯", "勤務状況", "勤続年数帯",
+    "他社借入件数", "媒体名", "承認区分"
+]
+available = [c for c in pivot_candidates if c in df_pivot_base.columns]
+
+if not available:
+    st.warning("ピボット可能な項目が見つかりません。")
+else:
+    row_dim = st.selectbox("行（Row）", available, index=0)
+    col_dim = st.selectbox("列（Column）", ["（なし）"] + available, index=1 if len(available) > 1 else 0)
+    value_metric = st.selectbox("値（Value）", ["件数", "取扱高合計"], index=0)
+    show_percent = st.checkbox("行方向の構成比（%）を表示", value=False)
+
+    # ✅ 選択列を 1次元の文字列に揃える
+    df_pivot_base[row_dim] = to_1d_str(df_pivot_base[row_dim])
+    if col_dim != "（なし）":
+        df_pivot_base[col_dim] = to_1d_str(df_pivot_base[col_dim])
+
+    try:
+        if value_metric == "件数":
+            if col_dim == "（なし）":
+                # 単純集計（行のみ）
+                result = (
+                    df_pivot_base.groupby(row_dim, dropna=False)
+                    .size()
+                    .reset_index(name="件数")
+                    .sort_values(by=row_dim)
+                )
+                if show_percent:
+                    total = result["件数"].sum()
+                    result["構成比(%)"] = (result["件数"] / total * 100).round(2) if total else 0.0
+                st.dataframe(result)
+                csv_bytes = result.to_csv(index=False).encode("utf-8-sig")
+            else:
+                # 行 × 列のクロス集計（件数）
+                ct = pd.crosstab(
+                    df_pivot_base[row_dim],
+                    df_pivot_base[col_dim],
+                    dropna=False
+                )
+                if show_percent:
+                    denom = ct.sum(axis=1).replace(0, pd.NA)
+                    ct_percent = (ct.div(denom, axis=0) * 100).round(2).fillna(0)
+                    st.write("行方向の構成比（%）")
+                    st.dataframe(ct_percent)
+                    csv_bytes = ct_percent.reset_index().to_csv(index=False).encode("utf-8-sig")
+                else:
+                    st.dataframe(ct)
+                    csv_bytes = ct.reset_index().to_csv(index=False).encode("utf-8-sig")
+
+        else:  # 取扱高合計
+            df_pivot_base["取扱高合計"] = pd.to_numeric(df_pivot_base["取扱高"], errors="coerce").fillna(0)
+            if col_dim == "（なし）":
+                result = (
+                    df_pivot_base.groupby(row_dim, dropna=False)["取扱高合計"]
+                    .sum()
+                    .reset_index()
+                    .sort_values(by=row_dim)
+                )
+                if show_percent:
+                    total = result["取扱高合計"].sum()
+                    result["構成比(%)"] = (result["取扱高合計"] / total * 100).round(2) if total else 0.0
+                st.dataframe(result)
+                csv_bytes = result.to_csv(index=False).encode("utf-8-sig")
+            else:
+                pv = pd.pivot_table(
+                    df_pivot_base,
+                    index=[row_dim],
+                    columns=[col_dim],
+                    values="取扱高合計",
+                    aggfunc="sum",
+                    fill_value=0,
+                    dropna=False,
+                    sort=True
+                )
+                if show_percent:
+                    row_sum = pv.sum(axis=1).replace(0, pd.NA)
+                    pv_percent = (pv.div(row_sum, axis=0) * 100).round(2).fillna(0)
+                    st.write("行方向の構成比（%）")
+                    st.dataframe(pv_percent)
+                    csv_bytes = pv_percent.reset_index().to_csv(index=False).encode("utf-8-sig")
+                else:
+                    st.dataframe(pv)
+                    csv_bytes = pv.reset_index().to_csv(index=False).encode("utf-8-sig")
+
+        st.download_button("クロス集計CSVをダウンロード", csv_bytes, "pivot.csv", "text/csv")
+
+    except Exception as e:
+        with st.expander("🔎 デバッグ情報（開いて確認）"):
+            st.write("エラー:", str(e))
+            st.write("列一覧:", df_pivot_base.columns.tolist())
+            dup_counts = pd.Series(df_pivot_base.columns).value_counts()
+            st.write("重複列名（出現回数）:", dup_counts[dup_counts > 1] if (dup_counts > 1).any() else "なし")
+            st.write("選択 Row/Column:", row_dim, col_dim)
+        st.error("クロス集計でエラーが発生しました。")
+
     st.info("Excelファイルをアップロードしてください。")
